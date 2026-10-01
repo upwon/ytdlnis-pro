@@ -31,6 +31,12 @@ class DubbingSettingsUiTest {
         Env.prefs.edit().clear().commit()
         ui = UiFlow(Env.ctx.packageName)
         scenario = ActivityScenario.launch(Intent(Env.ctx, SettingsActivity::class.java))
+        ui.ensureForeground {
+            Env.ctx.startActivity(
+                Intent(Env.ctx, SettingsActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            )
+        }
         ui.shot("settings-main")
     }
 

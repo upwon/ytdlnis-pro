@@ -133,7 +133,7 @@ class DubbingWorkerDeviceTest {
     }
 
     /** Local page served by CI (see .github/scripts/prepare-e2e-site.py); the emulator reaches the host as 10.0.2.2. */
-    private val site = "http://10.0.2.2:8000/index.html"
+    private fun siteUrl() = "http://10.0.2.2:8000/index.html?run=${System.nanoTime()}"
 
     // plain socket: Android's cleartext-HTTP policy would block an HTTP request from the app process
     private fun siteReachable(): Boolean = runCatching {
@@ -147,7 +147,7 @@ class DubbingWorkerDeviceTest {
         val dir = Env.newWorkDir()
         val video = Env.installDemo(dir, "Online subs", subtitle = false)
         assertFalse(File(dir, "Online subs.en.srt").exists())
-        val item = Env.insertHistory(video.absolutePath, "Online subs", url = site)
+        val item = Env.insertHistory(video.absolutePath, "Online subs", url = siteUrl())
 
         val result = runWorker(item.id)
         Log.i(TAG, "worker result: $result")

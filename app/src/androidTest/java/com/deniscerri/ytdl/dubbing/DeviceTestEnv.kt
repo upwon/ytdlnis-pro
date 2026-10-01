@@ -111,7 +111,7 @@ object DeviceTestEnv {
                 )
             )
         }
-        return dao.getAllHistoryByURLAndType(u, type).single()
+        return dao.getAllHistoryByURLAndType(u, type).maxByOrNull { it.id }!!
     }
 
     fun historyByUrl(url: String, type: DownloadType = DownloadType.video): List<HistoryItem> =

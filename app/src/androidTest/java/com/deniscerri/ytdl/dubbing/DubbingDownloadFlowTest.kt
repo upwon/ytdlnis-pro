@@ -28,7 +28,7 @@ import com.deniscerri.ytdl.dubbing.DeviceTestEnv as Env
 class DubbingDownloadFlowTest {
     @get:Rule val timeout: Timeout = Timeout(12, TimeUnit.MINUTES)
 
-    private val site = "http://10.0.2.2:8000/index.html"
+    private val site = "http://10.0.2.2:8000/index.html?run=${System.nanoTime()}"
 
     // plain socket: Android's cleartext-HTTP policy would block an HTTP request from the app process
     private fun siteReachable(): Boolean = runCatching {

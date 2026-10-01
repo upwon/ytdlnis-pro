@@ -31,10 +31,27 @@ class UiFlow(val pkg: String) {
 
     private fun shell(cmd: String): String = runCatching { device.executeShellCommand(cmd).trim() }.getOrDefault("?")
 
+    /**
+     * `ActivityScenario` reports the activity as resumed, but on a busy emulator the launcher can keep window focus,
+     * which leaves UiAutomator with an empty hierarchy. Bring the app back to front when that happens.
+     */
+    fun ensureForeground(relaunch: () -> Unit) {
+        repeat(4) { attempt ->
+            if (device.wait(Until.hasObject(By.pkg(pkg).depth(0)), 8_000)) return
+            Log.w(TAG, "app window is not in front (attempt $attempt): ${windowState()}")
+            runCatching { device.pressHome() }
+            Thread.sleep(700)
+            relaunch()
+        }
+    }
+
+    private fun windowState(): List<String> =
+        shell("dumpsys window").lines().filter { "mCurrentFocus" in it || "mFocusedApp" in it || "mFocusedWindow" in it }.take(4)
+
     private fun fail(msg: String): Nothing {
         shot("failure")
         val top = shell("dumpsys activity activities").lines().filter { "ResumedActivity" in it }.take(2)
-        val focus = shell("dumpsys window").lines().filter { "mCurrentFocus" in it || "isKeyguardShowing" in it || "mScreenOn" in it }.take(3)
+        val focus = windowState() + shell("dumpsys window").lines().filter { "isKeyguardShowing" in it || "mScreenOn" in it }.take(2)
         throw AssertionError("$msg\nVisible texts: ${visibleTexts()}\nResumed: $top\nWindow: $focus")
     }
 
