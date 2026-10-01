@@ -25,5 +25,6 @@ adb shell "ls /sdcard/Android/data/$PKG/files/screens 2>/dev/null" > /dev/null 2
   adb pull "/sdcard/Android/data/$PKG/files/screens" e2e-logs/screens || true
 # the interesting log lines, inline in the CI log
 echo "=================== DubbingE2E / DubbingWorker / crashes ==================="
-grep -E "DubbingE2E|DubbingWorker|AndroidRuntime|FATAL|ytdl" e2e-logs/logcat-full.txt | grep -vE "chatty|Choreographer" | tail -n 250 || true
+grep -E "DubbingE2E|DubbingWorker|AndroidRuntime|FATAL|F/linker|TestRunner" e2e-logs/logcat-full.txt \
+  | grep -vE "chatty|Choreographer|\): 	at |\): Caused by|\.\.\. [0-9]+ more" | cut -c1-300 | tail -n 160 || true
 exit $STATUS
