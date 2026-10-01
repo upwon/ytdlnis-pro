@@ -2,6 +2,16 @@
 # Runs inside the emulator started by reactivecircus/android-emulator-runner.
 set -u
 mkdir -p e2e-logs
+# keep the emulator screen on and unlocked: UI tests need it
+adb shell svc power stayon true || true
+adb shell settings put system screen_off_timeout 2147483647 || true
+adb shell input keyevent KEYCODE_WAKEUP || true
+adb shell wm dismiss-keyguard || true
+
+# local test site (emulator reaches the host as 10.0.2.2) for the online-subtitle test
+python3 .github/scripts/prepare-e2e-site.py
+(cd e2e-site && nohup python3 -m http.server 8000 --bind 0.0.0.0 > ../e2e-logs/site.log 2>&1 &)
+
 adb logcat -c || true
 adb logcat -v time > e2e-logs/logcat-full.txt &
 LOGCAT_PID=$!

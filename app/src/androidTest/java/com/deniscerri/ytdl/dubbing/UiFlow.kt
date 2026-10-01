@@ -13,6 +13,12 @@ import java.io.File
 /** Small UiAutomator toolbox; failures include the texts currently on screen so CI logs are self-explanatory. */
 class UiFlow(val pkg: String) {
     val device: UiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+    init {
+        // a screen that went to sleep shows nothing to UiAutomator
+        runCatching { device.wakeUp() }
+        runCatching { device.executeShellCommand("wm dismiss-keyguard") }
+    }
+
     private val shots = File(DeviceTestEnv.ctx.getExternalFilesDir(null), "screens").apply { mkdirs() }
     private var counter = 0
 
@@ -23,9 +29,13 @@ class UiFlow(val pkg: String) {
     fun visibleTexts(): List<String> =
         device.findObjects(By.pkg(pkg)).mapNotNull { runCatching { it.text }.getOrNull() }.filter { it.isNotBlank() }.distinct()
 
+    private fun shell(cmd: String): String = runCatching { device.executeShellCommand(cmd).trim() }.getOrDefault("?")
+
     private fun fail(msg: String): Nothing {
         shot("failure")
-        throw AssertionError("$msg\nVisible texts: ${visibleTexts()}")
+        val top = shell("dumpsys activity activities").lines().filter { "ResumedActivity" in it }.take(2)
+        val focus = shell("dumpsys window").lines().filter { "mCurrentFocus" in it || "isKeyguardShowing" in it || "mScreenOn" in it }.take(3)
+        throw AssertionError("$msg\nVisible texts: ${visibleTexts()}\nResumed: $top\nWindow: $focus")
     }
 
     /** Assertion that prints the current screen contents (and a screenshot) when it fails. */

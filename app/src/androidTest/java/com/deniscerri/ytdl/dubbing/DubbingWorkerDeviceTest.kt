@@ -132,6 +132,32 @@ class DubbingWorkerDeviceTest {
         assertEquals(1, Env.historyByUrl(item.url).size)
     }
 
+    /** Local page served by CI (see .github/scripts/prepare-e2e-site.py); the emulator reaches the host as 10.0.2.2. */
+    private val site = "http://10.0.2.2:8000/index.html"
+
+    private fun siteReachable(): Boolean = runCatching {
+        okhttp3.OkHttpClient.Builder().callTimeout(5, TimeUnit.SECONDS).build()
+            .newCall(okhttp3.Request.Builder().url(site).build()).execute().use { it.isSuccessful }
+    }.getOrDefault(false)
+
+    @Test fun fetchesEnglishSubtitlesOnlineWhenNoneWereSavedWithTheVideo() {
+        assumeTrue("local test site is not running", siteReachable())
+        val model = Env.workingFreeModel()
+        Env.configure(model, engine = DubbingPrefs.ENGINE_EDGE, fallback = false)
+        val dir = Env.newWorkDir()
+        val video = Env.installDemo(dir, "Online subs", subtitle = false)
+        assertFalse(File(dir, "Online subs.en.srt").exists())
+        val item = Env.insertHistory(video.absolutePath, "Online subs", url = site)
+
+        val result = runWorker(item.id)
+        Log.i(TAG, "worker result: $result")
+        assertTrue("worker result: $result", result is ListenableWorker.Result.Success)
+        val out = File(dir, "Online subs.zh.mp4")
+        assertTrue("dubbed file missing", out.exists())
+        assertEquals(2, Env.probe(out).audioStreams.size)
+        assertTrue("speech expected from the downloaded subtitles", Env.rms(Env.decode(out, 0), 1200, 3000) > 300)
+    }
+
     @Test fun missingFileFailsWithoutCrashing() {
         Env.configure("any/model:free")
         val dir = Env.newWorkDir()
