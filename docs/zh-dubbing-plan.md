@@ -54,7 +54,7 @@
 | 核心模块自动化测试 | ✅ 75 个测试：真实 FFmpeg + 本地 MockWebServer（模拟 OpenAI 兼容服务和 Edge 的 WebSocket 协议），在 GitHub 运行器（Ubuntu）上全部通过 |
 | **真实微软 Edge TTS** | ✅ `LiveTest.edgeTtsProducesRealMandarinSpeech` 在 GitHub 运行器上通过：握手签名、WebSocket 报文、MP3 解码都是对真实服务验证的 |
 | **Android 应用编译** | ✅ `:app:assembleGithubDebug` 构建成功（资源合并、导航、Kotlin 编译、dex、打包）。注意：基线提交里 `strings.xml` 有重复的 `share`，会让资源合并失败，我已删掉重复项 |
-| 真实 OpenRouter 免费模型 | ⏳ 测试已就绪，但需要在仓库里添加 Actions 密钥 `OPENROUTER_API_KEY`（Settings → Secrets and variables → Actions）；没有密钥时该测试会被跳过。测试只会调用价格为 0 的 `:free` 模型 |
+| **真实 OpenRouter 免费模型** | ✅ 已在 GitHub 运行器上通过（仓库密钥 `OPENROUTER_API_KEY`）。测试先从 `/models` 取价格为 0 的 `:free` 模型，依次尝试；实测 `google/gemma-4-26b-a4b-it:free` 把三句英文译成了通顺的中文，并完整跑通「翻译 → 配音 → 混流」。排在前面的 `qwen/qwen3.8-27b:free` 这次没有给出可用结果（日志没有记录原因，可能是限流或输出格式），测试自动换了下一个模型。免费模型的可用性会变，所以这条测试会逐个尝试 |
 | Android 运行时行为 | ⚠️ 没有在模拟器/真机上运行过：设置页的实际显示、历史页菜单、后台任务通知、系统 TTS 回退、SAF 路径等都还没验证 |
 
 本地运行：
