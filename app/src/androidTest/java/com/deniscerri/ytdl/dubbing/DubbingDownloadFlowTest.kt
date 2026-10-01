@@ -30,9 +30,9 @@ class DubbingDownloadFlowTest {
 
     private val site = "http://10.0.2.2:8000/index.html"
 
+    // plain socket: Android's cleartext-HTTP policy would block an HTTP request from the app process
     private fun siteReachable(): Boolean = runCatching {
-        okhttp3.OkHttpClient.Builder().callTimeout(5, TimeUnit.SECONDS).build()
-            .newCall(okhttp3.Request.Builder().url(site).build()).execute().use { it.isSuccessful }
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress("10.0.2.2", 8000), 3_000); true }
     }.getOrDefault(false)
 
     @Test fun downloadThenAutoDubProducesAFileWithAChineseTrack() {

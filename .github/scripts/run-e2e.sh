@@ -10,7 +10,9 @@ adb shell wm dismiss-keyguard || true
 
 # local test site (emulator reaches the host as 10.0.2.2) for the online-subtitle test
 python3 .github/scripts/prepare-e2e-site.py
-(cd e2e-site && nohup python3 -m http.server 8000 --bind 0.0.0.0 > ../e2e-logs/site.log 2>&1 &)
+# detached from the step's stdio, otherwise the step cannot finish while the server is alive
+(cd e2e-site && setsid nohup python3 -m http.server 8000 --bind 0.0.0.0 < /dev/null > ../e2e-logs/site.log 2>&1 &)
+SITE_PID=$(pgrep -f "http.server 8000" | head -1)
 
 adb logcat -c || true
 adb logcat -v time > e2e-logs/logcat-full.txt &
@@ -44,6 +46,7 @@ wait $GRADLE_PID
 STATUS=$?
 
 kill $LOGCAT_PID 2>/dev/null || true
+[ -n "${SITE_PID:-}" ] && kill $SITE_PID 2>/dev/null || true
 # screenshots written by the tests
 adb shell "ls /sdcard/Android/data/$PKG/files/screens 2>/dev/null" > /dev/null 2>&1 && \
   adb pull "/sdcard/Android/data/$PKG/files/screens" e2e-logs/screens || true
