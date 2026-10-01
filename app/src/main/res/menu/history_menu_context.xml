@@ -29,6 +29,12 @@
         android:title="@string/redownload" />
 
     <item
+        android:id="@+id/dub_zh"
+        android:icon="@drawable/ic_translate"
+        app:showAsAction="never"
+        android:title="@string/dubbing_menu" />
+
+    <item
         android:id="@+id/copy_urls"
         android:icon="@drawable/ic_copy"
         app:showAsAction="never"

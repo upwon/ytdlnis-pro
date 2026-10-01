@@ -23,6 +23,7 @@ import com.deniscerri.ytdl.MainActivity
 import com.deniscerri.ytdl.R
 import com.deniscerri.ytdl.core.RuntimeManager
 import com.deniscerri.ytdl.database.DBManager
+import com.deniscerri.ytdl.database.enums.DownloadType
 import com.deniscerri.ytdl.database.models.HistoryItem
 import com.deniscerri.ytdl.database.models.LogItem
 import com.deniscerri.ytdl.database.repository.DownloadRepository
@@ -34,6 +35,9 @@ import com.deniscerri.ytdl.util.Extensions.toStringDuration
 import com.deniscerri.ytdl.util.FileUtil
 import com.deniscerri.ytdl.util.NotificationUtil
 import com.deniscerri.ytdl.util.WorkerEventBus
+import com.deniscerri.ytdl.util.dubbing.DubbingFactory
+import com.deniscerri.ytdl.util.dubbing.DubbingPrefs
+import com.deniscerri.ytdl.util.dubbing.DubbingScheduler
 import com.deniscerri.ytdl.util.extractors.ytdlp.YTDLPUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -464,6 +468,15 @@ class DownloadWorker(
                                                 commandString
                                             )
                                             historyDao.insert(historyItem)
+
+                                            if (sharedPreferences.getBoolean(DubbingPrefs.AUTO, false)
+                                                && downloadItem.type != DownloadType.command
+                                                && DubbingFactory(context).llmConfigured()
+                                            ) {
+                                                runCatching {
+                                                    DubbingScheduler.enqueueForDownload(context, downloadItem.id, downloadItem.url, downloadItem.type.name)
+                                                }
+                                            }
                                         }
                                     }
                                 }

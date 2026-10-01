@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory android:title="@string/dubbing_llm_category">
+        <ListPreference
+            app:icon="@drawable/ic_dns"
+            app:key="dubbing_llm_preset"
+            app:title="@string/dubbing_provider"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_language"
+            app:key="dubbing_llm_base_url"
+            app:defaultValue=""
+            app:title="@string/dubbing_base_url"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_key"
+            app:key="dubbing_llm_api_key"
+            app:defaultValue=""
+            app:title="@string/dubbing_api_key" />
+
+        <EditTextPreference
+            app:icon="@drawable/baseline_settings_suggest_24"
+            app:key="dubbing_llm_model"
+            app:defaultValue=""
+            app:title="@string/dubbing_model"
+            app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:icon="@drawable/baseline_format_list_numbered_24"
+            app:key="dubbing_fetch_models"
+            app:summary="@string/dubbing_fetch_models_summary"
+            app:title="@string/dubbing_fetch_models" />
+
+        <Preference
+            app:icon="@drawable/ic_check"
+            app:key="dubbing_test_llm"
+            app:summary="@string/dubbing_test_llm_summary"
+            app:title="@string/dubbing_test_llm" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_textformat"
+            app:key="dubbing_glossary"
+            app:defaultValue=""
+            app:summary="@string/dubbing_glossary_summary"
+            app:title="@string/dubbing_glossary" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/dubbing_tts_category">
+        <ListPreference
+            app:icon="@drawable/ic_music"
+            app:key="dubbing_tts_engine"
+            app:defaultValue="edge"
+            app:entries="@array/dubbing_tts_engine_entries"
+            app:entryValues="@array/dubbing_tts_engine_values"
+            app:title="@string/dubbing_tts_engine"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            app:icon="@drawable/baseline_audio_file_24"
+            app:key="dubbing_voice"
+            app:defaultValue="zh-CN-XiaoxiaoNeural"
+            app:title="@string/dubbing_voice"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_edit"
+            app:key="dubbing_voice_custom"
+            app:defaultValue=""
+            app:summary="@string/dubbing_voice_custom_summary"
+            app:title="@string/dubbing_voice_custom" />
+
+        <SeekBarPreference
+            app:icon="@drawable/ic_clock"
+            android:max="50"
+            app:min="-50"
+            app:defaultValue="0"
+            app:key="dubbing_speech_rate"
+            app:showSeekBarValue="true"
+            app:title="@string/dubbing_speech_rate" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_language"
+            app:key="dubbing_azure_region"
+            app:defaultValue=""
+            app:title="@string/dubbing_azure_region"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_key"
+            app:key="dubbing_azure_key"
+            app:defaultValue=""
+            app:title="@string/dubbing_azure_key" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_language"
+            app:key="dubbing_tts_base_url"
+            app:defaultValue=""
+            app:summary="@string/dubbing_tts_base_url_summary"
+            app:title="@string/dubbing_tts_base_url" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_key"
+            app:key="dubbing_tts_api_key"
+            app:defaultValue=""
+            app:title="@string/dubbing_tts_api_key" />
+
+        <EditTextPreference
+            app:icon="@drawable/baseline_settings_suggest_24"
+            app:key="dubbing_tts_model"
+            app:defaultValue=""
+            app:title="@string/dubbing_tts_model"
+            app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="true"
+            app:icon="@drawable/baseline_music_off_24"
+            app:key="dubbing_fallback_system_tts"
+            app:summary="@string/dubbing_fallback_system_tts_summary"
+            app:title="@string/dubbing_fallback_system_tts" />
+
+        <Preference
+            app:icon="@drawable/ic_check"
+            app:key="dubbing_test_tts"
+            app:summary="@string/dubbing_test_tts_summary"
+            app:title="@string/dubbing_test_tts" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/dubbing_asr_category">
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_subtitles"
+            app:key="dubbing_asr_enabled"
+            app:summary="@string/dubbing_asr_enabled_summary"
+            app:title="@string/dubbing_asr_enabled" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_language"
+            app:key="dubbing_asr_base_url"
+            app:defaultValue=""
+            app:summary="@string/dubbing_asr_base_url_summary"
+            app:title="@string/dubbing_base_url" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_key"
+            app:key="dubbing_asr_api_key"
+            app:defaultValue=""
+            app:title="@string/dubbing_api_key" />
+
+        <EditTextPreference
+            app:icon="@drawable/baseline_settings_suggest_24"
+            app:key="dubbing_asr_model"
+            app:defaultValue="whisper-large-v3-turbo"
+            app:title="@string/dubbing_model"
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/dubbing_output_category">
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="true"
+            app:icon="@drawable/ic_music_downloaded"
+            app:key="dubbing_keep_original"
+            app:summary="@string/dubbing_keep_original_summary"
+            app:title="@string/dubbing_keep_original" />
+
+        <SeekBarPreference
+            app:icon="@drawable/ic_music"
+            android:max="50"
+            app:min="0"
+            app:defaultValue="0"
+            app:key="dubbing_original_volume"
+            app:showSeekBarValue="true"
+            app:summary="@string/dubbing_original_volume_summary"
+            app:title="@string/dubbing_original_volume" />
+
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_subtitles_alternative"
+            app:key="dubbing_embed_subtitle"
+            app:summary="@string/dubbing_embed_subtitle_summary"
+            app:title="@string/dubbing_embed_subtitle" />
+
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_folder_delete"
+            app:key="dubbing_replace_original"
+            app:summary="@string/dubbing_replace_original_summary"
+            app:title="@string/dubbing_replace_original" />
+
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_translate"
+            app:key="dubbing_auto"
+            app:summary="@string/dubbing_auto_summary"
+            app:title="@string/dubbing_auto" />
+    </PreferenceCategory>
+</PreferenceScreen>

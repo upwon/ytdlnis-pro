@@ -9,7 +9,15 @@
     <fragment
         android:id="@+id/processingSettingsFragment"
         android:name="com.deniscerri.ytdl.ui.more.settings.processing.ProcessingSettingsFragment"
-        android:label="ProcessingSettingsFragment" />
+        android:label="ProcessingSettingsFragment" >
+        <action
+            android:id="@+id/action_processingSettingsFragment_to_dubbingSettingsFragment"
+            app:destination="@id/dubbingSettingsFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/dubbingSettingsFragment"
+        android:name="com.deniscerri.ytdl.ui.more.settings.dubbing.DubbingSettingsFragment"
+        android:label="DubbingSettingsFragment" />
     <fragment
         android:id="@+id/folderSettingsFragment"
         android:name="com.deniscerri.ytdl.ui.more.settings.folder.FolderSettingsFragment"

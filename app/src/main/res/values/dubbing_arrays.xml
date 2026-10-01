@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="dubbing_tts_engine_entries">
+        <item>@string/dubbing_engine_edge</item>
+        <item>@string/dubbing_engine_azure</item>
+        <item>@string/dubbing_engine_openai</item>
+        <item>@string/dubbing_engine_system</item>
+    </string-array>
+    <string-array name="dubbing_tts_engine_values" translatable="false">
+        <item>edge</item>
+        <item>azure</item>
+        <item>openai</item>
+        <item>system</item>
+    </string-array>
+</resources>

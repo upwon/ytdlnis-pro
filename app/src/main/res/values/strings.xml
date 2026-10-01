@@ -600,4 +600,73 @@
     <string name="share">Share</string>
     <string name="open_file">Open File</string>
 
+    <!-- AI Chinese dubbing -->
+    <string name="dubbing_settings">AI Chinese dubbing</string>
+    <string name="dubbing_settings_summary">Turn the English audio of a video into a Chinese voice-over</string>
+    <string name="dubbing_title">AI Chinese dubbing</string>
+    <string name="dubbing_menu">Chinese dubbing (AI)</string>
+    <string name="dubbing_llm_category">Translation service (LLM)</string>
+    <string name="dubbing_provider">Provider</string>
+    <string name="dubbing_base_url">API base URL</string>
+    <string name="dubbing_api_key">API key</string>
+    <string name="dubbing_model">Model</string>
+    <string name="dubbing_fetch_models">Fetch model list</string>
+    <string name="dubbing_fetch_models_summary">Load the models offered by this provider (free ones are marked)</string>
+    <string name="dubbing_choose_model">Choose a model</string>
+    <string name="dubbing_test_llm">Test translation</string>
+    <string name="dubbing_test_llm_summary">Translate a sample sentence with the current settings</string>
+    <string name="dubbing_glossary">Glossary</string>
+    <string name="dubbing_glossary_summary">One term per line, for example: OpenAI=OpenAI. The model is told to follow them</string>
+    <string name="dubbing_tts_category">Voice (text to speech)</string>
+    <string name="dubbing_tts_engine">Engine</string>
+    <string name="dubbing_engine_edge">Microsoft Edge voices (free, no key)</string>
+    <string name="dubbing_engine_azure">Azure Speech (official, needs a key)</string>
+    <string name="dubbing_engine_openai">OpenAI-compatible service</string>
+    <string name="dubbing_engine_system">System voice (offline)</string>
+    <string name="dubbing_voice">Voice</string>
+    <string name="dubbing_voice_custom">Custom voice name</string>
+    <string name="dubbing_voice_custom_summary">Overrides the voice above, for example zh-CN-XiaoyiNeural or a voice id of your TTS service</string>
+    <string name="dubbing_speech_rate">Speaking speed (%)</string>
+    <string name="dubbing_azure_region">Azure region</string>
+    <string name="dubbing_azure_key">Azure key</string>
+    <string name="dubbing_tts_base_url">TTS service URL</string>
+    <string name="dubbing_tts_base_url_summary">Empty = same as the translation service</string>
+    <string name="dubbing_tts_api_key">TTS API key</string>
+    <string name="dubbing_tts_model">TTS model</string>
+    <string name="dubbing_fallback_system_tts">Fall back to the system voice</string>
+    <string name="dubbing_fallback_system_tts_summary">If the selected engine fails, continue with the phone\'s own voice</string>
+    <string name="dubbing_test_tts">Test voice</string>
+    <string name="dubbing_test_tts_summary">Speak a sample sentence</string>
+    <string name="dubbing_asr_category">Speech recognition (videos without subtitles)</string>
+    <string name="dubbing_asr_enabled">Use speech recognition</string>
+    <string name="dubbing_asr_enabled_summary">Transcribe the audio when no English subtitles exist (OpenAI-compatible /audio/transcriptions, for example Groq Whisper)</string>
+    <string name="dubbing_asr_base_url_summary">Empty = same as the translation service</string>
+    <string name="dubbing_output_category">Output</string>
+    <string name="dubbing_keep_original">Keep the original audio track</string>
+    <string name="dubbing_keep_original_summary">The Chinese dub is the default track, the original stays selectable in the player</string>
+    <string name="dubbing_original_volume">Background volume (%)</string>
+    <string name="dubbing_original_volume_summary">0 = clean separate dub track. Above 0 the original is mixed quietly under the dub</string>
+    <string name="dubbing_embed_subtitle">Add Chinese subtitles</string>
+    <string name="dubbing_embed_subtitle_summary">Soft subtitle track (mp4 / mkv)</string>
+    <string name="dubbing_replace_original">Replace the original file</string>
+    <string name="dubbing_replace_original_summary">Off = save a new file named *.zh.*</string>
+    <string name="dubbing_auto">Dub after download</string>
+    <string name="dubbing_auto_summary">Start dubbing automatically when a download finishes</string>
+    <string name="dubbing_not_set">Not set</string>
+    <string name="dubbing_stage_source">Reading text</string>
+    <string name="dubbing_stage_translate">Translating</string>
+    <string name="dubbing_stage_synthesize">Generating voice</string>
+    <string name="dubbing_stage_align">Aligning timeline</string>
+    <string name="dubbing_stage_mux">Adding audio track</string>
+    <string name="dubbing_done">Chinese dub added</string>
+    <string name="dubbing_failed">Dubbing failed</string>
+    <string name="dubbing_no_file">The downloaded file no longer exists</string>
+    <string name="dubbing_suffix">Chinese dub</string>
+    <string name="dubbing_queued">Added %1$d item(s) to the dubbing queue</string>
+    <string name="dubbing_not_configured">Set up dubbing first</string>
+    <string name="dubbing_not_configured_desc">Open Settings → Processing → AI Chinese dubbing and enter the API address, key and model of your translation service.</string>
+    <string name="dubbing_test_running">Testing…</string>
+    <string name="dubbing_test_ok">It works</string>
+    <string name="dubbing_error">Error</string>
+    <string name="dubbing_base_url_missing">Enter the API base URL first</string>
 </resources>

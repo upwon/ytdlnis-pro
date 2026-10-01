@@ -12,6 +12,7 @@ import com.deniscerri.ytdl.database.repository.SearchHistoryRepository
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonParser
+import com.deniscerri.ytdl.util.dubbing.DubbingPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -24,6 +25,8 @@ object BackupSettingsUtil {
             prefs.remove("cache_downloads")
             prefs.remove("use_alarm_for_scheduling")
             prefs.remove("use_bgutils_potoken_generator")
+            // API keys of the dubbing feature must not leave the device through backups
+            prefs.keys.removeAll { DubbingPrefs.isSecret(it) }
 
             val res = prefs.map { BackupSettingsItem(
                 key = it.key,

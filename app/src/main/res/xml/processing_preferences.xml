@@ -2,6 +2,12 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <Preference
+        app:icon="@drawable/ic_translate"
+        app:key="dubbing_settings"
+        app:summary="@string/dubbing_settings_summary"
+        app:title="@string/dubbing_settings" />
+
     <PreferenceCategory android:title="@string/general">
         <SwitchPreferenceCompat
             android:widgetLayout="@layout/preferece_material_switch"

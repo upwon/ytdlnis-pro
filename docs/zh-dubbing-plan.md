@@ -4,6 +4,75 @@
 > 日期：2026-10
 > 目标：下载的视频只有英文音轨时，在 App 内自动生成中文配音音轨，并合并回视频（保留原音轨，可切换）。
 
+
+## 0. 实现状态（2026-10-01）
+
+方案中的 P0 + 大部分 P1/P2 已实现。**核心流水线经过自动化测试；Android 界面和后台任务部分尚未在真机/模拟器上运行过**（见下方「验证情况」）。
+
+### 代码位置
+
+| 内容 | 位置 |
+|---|---|
+| 纯 JVM 核心（字幕 / 翻译 / TTS / 对齐 / 混流 / 流水线） | `dubbing-core/`（独立 Gradle 模块，可单独 `gradle test`） |
+| Android 适配（ffmpeg 执行器、系统 TTS、配置工厂、任务调度） | `app/.../util/dubbing/` |
+| 后台任务 | `app/.../work/DubbingWorker.kt` |
+| 设置页 | `app/.../ui/more/settings/dubbing/`、`res/xml/dubbing_preferences.xml`（入口：设置 → 处理 → AI 中文配音） |
+| 历史记录入口 | 历史页多选 → 菜单「AI 中文配音」 |
+| 下载后自动配音 | 设置里打开「下载完成后自动配音」，在 `DownloadWorker` 写入历史后触发 |
+
+### 与原方案的差异
+
+- **没有移植 RikkaHub 的 `ai` / `speech` 模块**，而是在核心里自己写了一个很薄的 OpenAI 兼容客户端（聊天、模型列表、语音识别、TTS 共 4 个接口，约 200 行）。原因：移植需要去掉 Compose 依赖并引入 AGPL 代码，而这个沙箱无法编译 Android，移植后的代码无法验证；薄客户端可以在 JVM 上完整测试。上层只依赖 `ChatClient` / `TtsProvider` / `AsrProvider` 三个接口，之后要换成 RikkaHub 的实现很容易。
+- 语音识别只实现了「OpenAI 兼容 `/audio/transcriptions`」（Groq Whisper、硅基流动、OpenAI 等），没有做离线 sherpa-onnx。
+- 没有做人声分离、声音克隆。
+
+### 已实现的功能
+
+- 字幕：SRT / VTT 解析；YouTube 滚动式自动字幕去重；按句合并；过滤 `[Music]`、♪ 等非语音内容。
+- 没有字幕时用语音识别（按 10 分钟分段上传，时间戳自动加偏移）。
+- 大模型翻译：分批、带上下文、按时长给出字数上限、JSON 输出容错（代码块、`<think>`、数组/对象/映射三种格式）、缺失条目自动重试并退化为单条请求、可设置术语表。
+- TTS：Edge（免费，含 `Sec-MS-GEC` 签名和时钟偏差自动校正）、Azure 官方、OpenAI 兼容、系统语音；任一引擎失败自动降级到系统语音。
+- 时间轴对齐：去掉 TTS 片段首尾静音、借用后面的空隙、必要时加速（最高 1.5 倍）、顺延后面的句子（有漂移上限）、仍放不下则截断并淡出；流式写入，长视频内存占用恒定。
+- 混流：视频流直接复制；中文轨为默认轨并标注 `chi`；保留原音轨；可选把原声压低混入（配音说话时自动让开）；可选加中文软字幕；MP4 / MKV / WebM / 纯音频都处理。
+- 断点续跑：翻译和 TTS 结果存在 `cues.json`，失败后重试不会重复调用 API；字幕内容变化会自动作废缓存。
+- 取消：协程取消会立即结束正在运行的 ffmpeg。
+- API 密钥不会进入设置备份。
+
+### 使用方法（App 内）
+
+1. 设置 → 处理 → AI 中文配音。
+2. 选服务商（OpenRouter / DeepSeek / 通义 / 智谱 / Kimi / 硅基流动 / OpenAI / Groq / Gemini / Ollama / 自定义），填 API 密钥；点「获取模型列表」选模型（免费模型有 🆓 标记），点「测试翻译」确认可用。
+3. 语音引擎默认「微软 Edge」（免费，无需密钥），可点「试听音色」。
+4. 历史页长按选中视频 → 右上角菜单 → 「AI 中文配音」。完成后得到 `原文件名.zh.mp4`（可改为替换原文件），播放器里第一条音轨就是中文。
+
+### 验证情况（诚实说明）
+
+| 项目 | 状态 |
+|---|---|
+| 核心模块自动化测试 | ✅ 75 个测试，73 个通过，2 个联网测试按设计跳过（见下） |
+| 测试用的真实组件 | 真实 FFmpeg（生成视频、解码、混流、探测）；本地 MockWebServer 模拟 OpenAI 兼容服务和 Edge TTS 的 WebSocket 协议 |
+| 对真实 OpenRouter 免费模型的测试 | ⚠️ **没有运行**。测试已写好（`LiveTest`，只会调用价格为 0 的 `:free` 模型），但沙箱网络策略拒绝访问 `openrouter.ai` |
+| 对真实微软 Edge 服务的测试 | ⚠️ **没有运行**，原因同上（`speech.platform.bing.com` 被拒绝）。协议实现依据 `edge-tts` 的公开实现，只用本地模拟服务验证了报文流程 |
+| Android 代码（Worker、设置页、历史菜单等） | ⚠️ **没有编译，没有运行**。沙箱无法访问 `dl.google.com`，装不了 Android SDK。我用桩类对这些文件做过 Kotlin 类型检查（无错误），但真实 API 的差异、布局/导航问题、运行时权限等都没有验证 |
+
+在能联网的机器上运行联网测试：
+
+```bash
+cd dubbing-core
+OPENROUTER_API_KEY=sk-or-... gradle test --tests '*LiveTest*'     # 只调用免费模型
+EDGE_TTS_LIVE=1 gradle test --tests '*LiveTest*'                   # 真实 Edge 语音
+```
+
+全部离线测试：`cd dubbing-core && gradle test`（需要本机有 `ffmpeg` / `ffprobe`）。
+
+### 已知限制 / 后续
+
+- Edge TTS 是非官方接口，微软改动鉴权后可能失效（已有自动降级，但音质会下降）。
+- 目前只处理英文原文 → 中文；语言参数已预留（`DubbingConfig.sourceLanguageCode`）。
+- 内容 URI（SAF 外部文件夹）的视频会复制到缓存处理，结果保存到默认视频/音频文件夹，「替换原文件」对它们不生效。
+- 字幕缺失时通过 yt-dlp 重新取字幕，没有套用 App 下载时的 cookies/代理设置。
+- 多说话人分配不同音色、人声分离、离线 ASR 属于后续工作。
+
 ---
 
 ## 1. 整体流程

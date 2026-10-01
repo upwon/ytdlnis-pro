@@ -8,6 +8,7 @@ import com.deniscerri.ytdl.R
 import com.deniscerri.ytdl.database.models.SearchSettingsItem
 import com.deniscerri.ytdl.ui.more.settings.advanced.AdvancedSettingsModule
 import com.deniscerri.ytdl.ui.more.settings.downloading.DownloadSettingsModule
+import com.deniscerri.ytdl.ui.more.settings.dubbing.DubbingSettingsModule
 import com.deniscerri.ytdl.ui.more.settings.folder.FolderSettingsModule
 import com.deniscerri.ytdl.ui.more.settings.general.GeneralSettingsModule
 import com.deniscerri.ytdl.ui.more.settings.processing.ProcessingSettingsModule
@@ -19,6 +20,7 @@ object SettingsRegistry {
         R.xml.folders_preference to FolderSettingsModule,
         R.xml.downloading_preferences to DownloadSettingsModule,
         R.xml.processing_preferences to ProcessingSettingsModule,
+        R.xml.dubbing_preferences to DubbingSettingsModule,
         R.xml.updating_preferences to UpdateSettingsModule,
         R.xml.advanced_preferences to AdvancedSettingsModule
     )

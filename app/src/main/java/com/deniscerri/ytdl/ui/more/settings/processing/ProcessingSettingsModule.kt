@@ -25,6 +25,12 @@ object ProcessingSettingsModule : SettingModule {
         val context = pref.context
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         when(pref.key) {
+            "dubbing_settings" -> {
+                pref.setOnPreferenceClickListener {
+                    host.requestNavigate(R.id.action_processingSettingsFragment_to_dubbingSettingsFragment)
+                    true
+                }
+            }
             "use_sponsorblock" -> {
                 pref.setOnPreferenceChangeListener { _, newValue ->
                     host.findPref("sponsorblock_filters")?.isEnabled = newValue as Boolean

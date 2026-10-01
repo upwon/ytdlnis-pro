@@ -60,6 +60,8 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.color.MaterialColors
+import com.deniscerri.ytdl.util.dubbing.DubbingFactory
+import com.deniscerri.ytdl.util.dubbing.DubbingScheduler
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import it.xabaras.android.recyclerview.swipedecorator.RecyclerViewSwipeDecorator
@@ -669,6 +671,24 @@ class HistoryFragment : Fragment(), HistoryPaginatedAdapter.OnItemClickListener{
                             }
                             actionMode?.finish()
                         }
+                    }
+                    true
+                }
+                R.id.dub_zh -> {
+                    lifecycleScope.launch {
+                        val selectedObjects = getSelectedIDs()
+                        historyAdapter.clearCheckedItems()
+                        if (!DubbingFactory(requireContext()).llmConfigured()) {
+                            MaterialAlertDialogBuilder(requireContext())
+                                .setTitle(R.string.dubbing_not_configured)
+                                .setMessage(R.string.dubbing_not_configured_desc)
+                                .setPositiveButton(R.string.ok, null)
+                                .show()
+                        } else {
+                            DubbingScheduler.enqueueForHistory(requireContext(), selectedObjects)
+                            Toast.makeText(requireContext(), getString(R.string.dubbing_queued, selectedObjects.size), Toast.LENGTH_SHORT).show()
+                        }
+                        actionMode?.finish()
                     }
                     true
                 }
