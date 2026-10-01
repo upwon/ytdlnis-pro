@@ -9,7 +9,7 @@ LOGCAT_PID=$!
 # Runtime permissions the real app asks for on first launch
 PKG=com.deniscerri.ytdl
 
-ARGS=(--console=plain --stacktrace "-Pandroid.testInstrumentationRunnerArguments.OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}")
+ARGS=(--console=plain --stacktrace "-Pandroid.injected.build.abi=x86_64" "-Pandroid.testInstrumentationRunnerArguments.OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}")
 if [ -n "${TEST_FILTER:-}" ]; then
   ARGS+=("-Pandroid.testInstrumentationRunnerArguments.class=${TEST_FILTER}")
 else
