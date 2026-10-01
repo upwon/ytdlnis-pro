@@ -262,6 +262,58 @@ API Key 使用 `EncryptedSharedPreferences`（`androidx.security:security-crypto
 - **费用预估**：开始前显示"约 N 句 / M 字符 / 预计消耗"，避免误用付费 API。
 - **长视频**：1 小时视频约 600~900 句、1.5~2 万汉字；Edge TTS 约需数分钟；需保证 Worker 为前台服务（`setForeground`）。
 
+### 4.6 大模型 API 的配置与接入层选型（补充）
+
+#### 结论先行
+
+- **可以完全在 App 里配置**：用户在设置页填 `Base URL + API Key + 模型名` 即可，不需要改代码、不需要重新打包。
+- **不需要自己写"多厂商适配层"**：2026 年主流国产/海外厂商、聚合平台以及各家的 Token Plan / Coding Plan 订阅，**几乎都提供 OpenAI 兼容接口**（不少还同时提供 Anthropic 兼容接口）。所以只要对接「OpenAI 兼容」这一个协议，就能覆盖绝大多数服务。
+- 接入层有两种做法：**用现成 SDK**，或者**基于项目里已有的 OkHttp + kotlinx-serialization 写一个很薄的客户端**（只需要 Chat Completions、`/models`、ASR、TTS 四个接口，大约 150 行）。下面是对比。
+
+#### 现成的 Android / Kotlin SDK 调研
+
+| 库 | 支持的厂商 | 平台 | 依赖/体积 | 适合本项目吗 |
+|---|---|---|---|---|
+| **aallam/openai-kotlin**（`com.aallam.openai:openai-client`） | OpenAI 及任意 OpenAI 兼容服务（可自定义 host） | KMP，含 Android | 引入 Ktor 客户端 | ✅ 可用。覆盖 Chat / Audio 转写 / TTS，改 `host` 就能接 DeepSeek、通义、智谱、硅基流动、OpenRouter 等 |
+| **tddworks/openai-kotlin** | OpenAI、Anthropic、Gemini、Azure、Ollama 统一接口 | KMP，含 Android | Ktor + Koin | ⚠️ 可用，但多厂商原生协议对我们意义不大（都走 OpenAI 兼容即可） |
+| **JetBrains Koog** | OpenAI、Anthropic、Google、OpenRouter、Ollama 等，可在运行中切换模型 | KMP，含 Android | 较重（Agent 框架：工具调用、记忆、工作流） | ❌ 对"批量翻译字幕"属于大材小用，体积与复杂度不划算 |
+| **LangChain4j** | 几十家厂商 | JVM（Android 兼容性需自行验证） | 很重 | ❌ 不推荐用于移动端 |
+| generic-ai 等小众 KMP 库 | 多家 | KMP | 一般 | ❌ 社区小，维护风险高 |
+| Google Firebase AI Logic / Gemini SDK、MediaPipe 本地 LLM | 只支持 Gemini / 本地小模型 | Android | 依赖 Firebase / 模型文件大 | ❌ 锁定单一厂商，不符合"用户自带 API"的需求 |
+
+**推荐：自己用 OkHttp 写一个很薄的 OpenAI 兼容客户端（首选）**，或者直接用 `aallam/openai-kotlin`（次选）。理由：
+1. 项目里已经有 OkHttp 5 和 kotlinx-serialization，**不需要增加依赖**（openai-kotlin 会额外引入 Ktor，APK 会大一点）；
+2. 我们只用到 4 个接口，代码量很小；
+3. 各家"OpenAI 兼容"其实有细微差异（是否支持 `response_format: json_object`、思考模型会返回 `reasoning_content`、个别平台不提供 `/models`），自己写的客户端更容易做兼容处理；
+4. F-Droid 构建对依赖比较敏感，依赖越少越好。
+
+如果以后要接 Anthropic 原生协议（`/v1/messages`），加一个 `AnthropicTranslator` 即可（同样只是一个 HTTP 请求）。现在很多平台本身就同时提供两种协议，所以优先级很低。
+
+#### 设置页设计：「服务商预设 + 自定义」
+
+```
+翻译服务
+├── 服务商：[下拉] DeepSeek / 通义千问(百炼) / 智谱 GLM / Kimi / MiniMax / 硅基流动 /
+│                 OpenRouter / OpenAI / Gemini(OpenAI 兼容) / Groq / Ollama(局域网) / 自定义
+├── Base URL：（选择预设后自动填好，可修改）
+├── API Key：********（加密保存）
+├── 模型：[下拉，点「获取模型列表」调用 GET /models；也可手动输入]
+├── [测试连接] → 发一句 "Hello" 翻译，显示耗时和结果
+└── 高级：温度、每批条数、并发数、超时、是否启用 JSON 模式、自定义 Prompt
+```
+
+- 预设只是一份内置的 JSON（`provider_presets.json`：名称、Base URL、默认模型、是否支持 `/models`、是否支持 JSON 模式），**以后新增厂商只改这份数据，不改代码**。
+- 可以保存**多个配置**，并设置「主用 + 备用」：主用出现限流或报错时自动切到备用（例如主用 Token Plan、备用免费模型）。
+- 同一套配置机制也用于 ASR（`/audio/transcriptions`）和 TTS（`/audio/speech`）。
+
+#### 关于 Token Plan / Coding Plan 订阅
+
+2026 年国内厂商普遍推出了包月订阅：例如阿里云百炼 Token Plan（按 Credits 计量，可用通义千问、DeepSeek、Kimi、GLM、MiniMax 等多家模型，同时提供 OpenAI 和 Anthropic 兼容接口，团队版按坐席收费，约 ¥198 / ¥698 / ¥1,398 三档），以及智谱、MiniMax、Kimi 等的 Coding Plan。
+
+- **技术上可以直接用**：它们提供 OpenAI 兼容的 Base URL 和 Key，填到上面的「自定义」或对应预设里就行，不需要额外 SDK。
+- **需要注意条款**：部分 Coding Plan 写明只能在编程工具（Claude Code、Cline 等）中使用，或者有专用的 Base URL，用于其它用途可能违反条款或被限流。接入前要看清楚各家条款；文档和界面中建议注明"请确认您的订阅允许此用途"。
+- **用量估算**：翻译一小时视频的字幕大约需要 2~4 万输入 token 加 2~3 万输出 token（含上下文和 JSON 包装）。按量计费的模型（如 DeepSeek）一次也就几分钱，所以**不一定需要买订阅**；已经买了订阅的话，可以顺便复用。
+
 ---
 
 ## 5. 推荐组合
@@ -310,3 +362,9 @@ API Key 使用 `EncryptedSharedPreferences`（`androidx.security:security-crypto
 - sherpa-onnx（离线 ASR/TTS/VAD/人声分离，支持 Android）：https://github.com/k2-fsa/sherpa-onnx
 - YouTube 自动配音说明：https://support.google.com/youtube/answer/15569972
 - yt-dlp：https://github.com/yt-dlp/yt-dlp
+- aallam/openai-kotlin：https://github.com/aallam/openai-kotlin
+- tddworks/openai-kotlin（多厂商 KMP）：https://github.com/tddworks/openai-kotlin
+- JetBrains Koog / Kotlin AI 开发概览：https://kotlinlang.org/docs/kotlin-ai-apps-development-overview.html
+- generic-ai（KMP）：https://klibs.io/project/bay73/generic-ai
+- 阿里云百炼 Token Plan 介绍：https://developer.aliyun.com/article/1735382
+- 各家 Coding Plan / Token Plan 对比（2026-06）：https://blog.csdn.net/weixin_44733660/article/details/160397630
