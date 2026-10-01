@@ -122,8 +122,9 @@ class DubbingSettingsUiTest {
 
         ui.scrollAndTap("API key")
         ui.typeInTextDialog(key)
-        Log.i(TAG, "screen after key entry: ${ui.visibleTexts()}")
-        ui.check(ui.hasContains("••••••${key.takeLast(4)}"), "masked key expected in summary")
+        // the summary is refreshed asynchronously after the dialog closes
+        ui.check(ui.findContains("••••••${key.takeLast(4)}", 8_000) != null, "masked key expected in summary")
+        assertEquals(key, Env.prefs.getString(DubbingPrefs.LLM_API_KEY, null))
 
         // fetch the model list from the real service and pick a free one
         ui.scrollAndTap("Fetch model list")
