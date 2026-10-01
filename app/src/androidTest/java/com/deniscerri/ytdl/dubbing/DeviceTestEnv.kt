@@ -81,9 +81,15 @@ object DeviceTestEnv {
         return cachedModel ?: throw AssertionError("No free model produced a translation:\n" + errors.joinToString("\n"))
     }
 
-    fun configure(model: String, engine: String = DubbingPrefs.ENGINE_EDGE, fallback: Boolean = false, block: SharedPreferences.Editor.() -> Unit = {}) {
+    fun configure(
+        model: String,
+        engine: String = DubbingPrefs.ENGINE_EDGE,
+        fallback: Boolean = false,
+        clear: Boolean = true,
+        block: SharedPreferences.Editor.() -> Unit = {},
+    ) {
         prefs.edit(commit = true) {
-            clear()
+            if (clear) clear()
             putString(DubbingPrefs.LLM_BASE_URL, OPENROUTER)
             putString(DubbingPrefs.LLM_API_KEY, openRouterKey)
             putString(DubbingPrefs.LLM_MODEL, model)

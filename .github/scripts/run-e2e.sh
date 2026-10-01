@@ -26,7 +26,21 @@ else
   ARGS+=("-Pandroid.testInstrumentationRunnerArguments.package=com.deniscerri.ytdl.dubbing")
 fi
 
-./gradlew :app:connectedGithubDebugAndroidTest "${ARGS[@]}"
+# Run gradle in the background and stream test progress from logcat into the CI log while it runs,
+# so a stuck test is visible live instead of after the fact.
+timeout 40m ./gradlew :app:connectedGithubDebugAndroidTest "${ARGS[@]}" &
+GRADLE_PID=$!
+SEEN=0
+while kill -0 $GRADLE_PID 2>/dev/null; do
+  sleep 45
+  TOTAL=$(wc -l < e2e-logs/logcat-full.txt)
+  if [ "$TOTAL" -gt "$SEEN" ]; then
+    tail -n +$((SEEN + 1)) e2e-logs/logcat-full.txt | grep -E "DubbingE2E|TestRunner|DubbingWorker|FATAL|WM-WorkerWrapper" \
+      | grep -vE "\): 	at " | cut -c1-240 | sed 's/^/[live] /' || true
+    SEEN=$TOTAL
+  fi
+done
+wait $GRADLE_PID
 STATUS=$?
 
 kill $LOGCAT_PID 2>/dev/null || true

@@ -26,7 +26,7 @@ import com.deniscerri.ytdl.dubbing.DeviceTestEnv as Env
 /** The user paths that start a dubbing job: the history menu, and the "dub after download" scheduling path. */
 @RunWith(AndroidJUnit4::class)
 class DubbingHistoryUiTest {
-    @get:Rule val timeout: Timeout = Timeout(15, TimeUnit.MINUTES)
+    @get:Rule val timeout: Timeout = Timeout(12, TimeUnit.MINUTES)
 
     private fun grantNotifications() {
         runCatching {
