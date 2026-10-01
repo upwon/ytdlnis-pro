@@ -73,6 +73,17 @@ jobs:
           echo "--- edge host reachable?"
           curl -sS -m 15 -o /dev/null -w "HTTP %{http_code}\n" https://speech.platform.bing.com/ || true
 
+      - name: Subtitle source probe (which sites give English subtitles to a CI runner)
+        continue-on-error: true
+        run: |
+          pip install -q yt-dlp 2>&1 | tail -1
+          yt-dlp --version
+          for u in "https://www.youtube.com/watch?v=jNQXAC9IVRw" "https://www.ted.com/talks/sir_ken_robinson_do_schools_kill_creativity" "https://vimeo.com/76979871" "https://archive.org/details/BigBuckBunny_124"; do
+            echo "=== $u"; rm -rf /tmp/s; mkdir /tmp/s
+            timeout 150 yt-dlp --no-playlist --skip-download --write-subs --write-auto-subs --sub-langs "en.*,en" --convert-subs srt -o "/tmp/s/sub.%(ext)s" "$u" 2>&1 | tail -3
+            ls -la /tmp/s | tail -4
+          done
+
       - name: Run tests
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

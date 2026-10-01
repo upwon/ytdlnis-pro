@@ -44,6 +44,17 @@ class UiFlow(val pkg: String) {
         Log.i(TAG, "tapped '$text'")
     }
 
+    /** First-run dialogs and the like: tap the first of [texts] that is on screen, if any. */
+    fun dismissIfPresent(vararg texts: String) {
+        for (t in texts) {
+            val o = device.findObject(By.text(t)) ?: continue
+            o.click()
+            Log.i(TAG, "dismissed '$t'")
+            Thread.sleep(500)
+            return
+        }
+    }
+
     /** Scrolls a settings list until [text] is visible. */
     fun scrollTo(text: String, listClass: String = "androidx.recyclerview.widget.RecyclerView"): Boolean {
         if (has(text)) return true
