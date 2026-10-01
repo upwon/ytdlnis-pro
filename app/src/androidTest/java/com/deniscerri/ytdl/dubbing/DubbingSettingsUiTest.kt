@@ -43,20 +43,20 @@ class DubbingSettingsUiTest {
         ui.tap("Processing")
         ui.shot("processing")
         ui.tap("AI Chinese dubbing")
-        assertTrue("dubbing screen should show its first section", ui.find("Translation service (LLM)") != null)
+        ui.check(ui.find("Translation service (LLM)") != null, "dubbing screen should show its first section")
         ui.shot("dubbing-screen")
     }
 
     @Test fun entryIsReachableAndShowsAllSections() {
         openDubbingScreen()
         for (title in listOf("Provider", "API base URL", "Model", "Fetch model list", "Test translation")) {
-            assertTrue("missing '$title'", ui.scrollTo(title))
+            ui.check(ui.scrollTo(title), "missing '$title'")
         }
         for (section in listOf("Voice (text to speech)", "Speech recognition (videos without subtitles)", "Output")) {
-            assertTrue("missing section '$section'", ui.scrollTo(section))
+            ui.check(ui.scrollTo(section), "missing section '$section'")
         }
-        assertTrue(ui.scrollTo("Dub after download"))
-        assertTrue(ui.scrollTo("Keep the original audio track"))
+        ui.check(ui.scrollTo("Dub after download"), "missing Dub after download")
+        ui.check(ui.scrollTo("Keep the original audio track"), "missing Keep the original audio track")
         ui.shot("sections")
     }
 
@@ -64,19 +64,19 @@ class DubbingSettingsUiTest {
         openDubbingScreen()
         ui.scrollAndTap("Engine")
         ui.tapDialogItem("Azure Speech (official, needs a key)")
-        assertTrue("Azure fields should appear", ui.scrollTo("Azure region"))
+        ui.check(ui.scrollTo("Azure region"), "Azure fields should appear")
         assertEquals("azure", Env.prefs.getString(DubbingPrefs.TTS_ENGINE, null))
         ui.shot("engine-azure")
 
         ui.scrollAndTap("Engine")
         ui.tapDialogItem("Microsoft Edge voices (free, no key)")
         Thread.sleep(500)
-        assertFalse("Azure fields should hide again", ui.has("Azure region"))
+        ui.check(!ui.has("Azure region"), "Azure fields should hide again")
         assertEquals("edge", Env.prefs.getString(DubbingPrefs.TTS_ENGINE, null))
 
         ui.scrollAndTap("Engine")
         ui.tapDialogItem("OpenAI-compatible service")
-        assertTrue(ui.scrollTo("TTS service URL"))
+        ui.check(ui.scrollTo("TTS service URL"), "TTS service URL should appear")
         ui.shot("engine-openai")
     }
 
@@ -96,8 +96,10 @@ class DubbingSettingsUiTest {
         ui.typeInTextDialog("sk-test-1234567890")
         Thread.sleep(300)
         assertEquals("sk-test-1234567890", Env.prefs.getString(DubbingPrefs.LLM_API_KEY, null))
-        assertTrue("key must be masked, only the tail is shown", ui.hasContains("••••••7890"))
-        assertFalse("full key must not be shown", ui.hasContains("sk-test-1234567890"))
+        ui.check(ui.scrollTo("API key") && ui.hasContains("7890"), "key tail should be shown in the summary")
+        Log.i(TAG, "screen after key entry: ${ui.visibleTexts()}")
+        ui.check(ui.hasContains("••••••7890"), "key must be masked, only the tail is shown")
+        ui.check(!ui.hasContains("sk-test-1234567890"), "full key must not be shown")
         ui.shot("masked-key")
     }
 
@@ -114,30 +116,31 @@ class DubbingSettingsUiTest {
 
         ui.scrollAndTap("API key")
         ui.typeInTextDialog(key)
-        assertTrue(ui.hasContains("••••••${key.takeLast(4)}"))
+        Log.i(TAG, "screen after key entry: ${ui.visibleTexts()}")
+        ui.check(ui.hasContains("••••••${key.takeLast(4)}"), "masked key expected in summary")
 
         // fetch the model list from the real service and pick a free one
         ui.scrollAndTap("Fetch model list")
-        assertTrue("model picker should open", ui.find("Choose a model", 60_000) != null)
+        ui.check(ui.find("Choose a model", 60_000) != null, "model picker should open")
         ui.shot("model-picker")
         ui.tapDialogItem("🆓 $model")
         Thread.sleep(500)
         assertEquals(model, Env.prefs.getString(DubbingPrefs.LLM_MODEL, null))
-        assertTrue("chosen model shown as summary", ui.scrollTo(model))
+        ui.check(ui.scrollTo(model), "chosen model shown as summary")
 
         // translation test with the real model
         ui.scrollAndTap("Test translation")
-        assertTrue("translation test should succeed", ui.find("It works", 120_000) != null)
+        ui.check(ui.find("It works", 120_000) != null, "translation test should succeed")
         val message = ui.device.findObject(androidx.test.uiautomator.By.res("android:id/message"))?.text.orEmpty()
         Log.i(TAG, "test translation shows: $message")
         ui.shot("test-translation")
-        assertTrue("expected Chinese in '$message'", cjk.containsMatchIn(message))
+        ui.check(cjk.containsMatchIn(message), "expected Chinese in '$message'")
         ui.tap("OK")
 
         // real Edge voice, played on the device
         ui.scrollAndTap("Test voice")
         Thread.sleep(12_000)
         ui.shot("test-voice")
-        assertFalse("voice test must not show an error", ui.has("Error"))
+        ui.check(!ui.has("Error"), "voice test must not show an error")
     }
 }

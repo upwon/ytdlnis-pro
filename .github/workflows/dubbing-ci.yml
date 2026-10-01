@@ -20,6 +20,7 @@ on:
       - "build.gradle"
       - "settings.gradle"
       - ".github/workflows/dubbing-ci.yml"
+      - ".github/scripts/**"
 
 concurrency:
   group: dubbing-ci-${{ github.ref }}

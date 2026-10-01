@@ -28,6 +28,11 @@ class UiFlow(val pkg: String) {
         throw AssertionError("$msg\nVisible texts: ${visibleTexts()}")
     }
 
+    /** Assertion that prints the current screen contents (and a screenshot) when it fails. */
+    fun check(condition: Boolean, message: String) {
+        if (!condition) fail(message)
+    }
+
     fun find(text: String, timeoutMs: Long = 10_000): UiObject2? = device.wait(Until.findObject(By.text(text)), timeoutMs)
     fun findContains(text: String, timeoutMs: Long = 10_000): UiObject2? = device.wait(Until.findObject(By.textContains(text)), timeoutMs)
     fun has(text: String): Boolean = device.hasObject(By.text(text))

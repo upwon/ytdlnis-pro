@@ -143,7 +143,9 @@ class DubbingWorkerDeviceTest {
     }
 
     @Test fun systemVoiceEngineProducesADub() {
-        assumeTrue("no Chinese system TTS voice on this device", systemChineseTtsAvailable())
+        val available = systemChineseTtsAvailable()
+        Log.i(TAG, "system Chinese TTS available: $available")
+        assumeTrue("no Chinese system TTS voice on this device", available)
         val model = Env.workingFreeModel()
         Env.configure(model, engine = DubbingPrefs.ENGINE_SYSTEM)
         val dir = Env.newWorkDir()
