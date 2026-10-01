@@ -281,7 +281,7 @@ API Key 使用 `EncryptedSharedPreferences`（`androidx.security:security-crypto
 | generic-ai 等小众 KMP 库 | 多家 | KMP | 一般 | ❌ 社区小，维护风险高 |
 | Google Firebase AI Logic / Gemini SDK、MediaPipe 本地 LLM | 只支持 Gemini / 本地小模型 | Android | 依赖 Firebase / 模型文件大 | ❌ 锁定单一厂商，不符合"用户自带 API"的需求 |
 
-**推荐：自己用 OkHttp 写一个很薄的 OpenAI 兼容客户端（首选）**，或者直接用 `aallam/openai-kotlin`（次选）。理由：
+**推荐：自己用 OkHttp 写一个很薄的 OpenAI 兼容客户端**，或者直接用 `aallam/openai-kotlin`。（**更新：发现可以复用 RikkaHub 的现成实现，见 4.7 节，现在首选那个方案**）理由：
 1. 项目里已经有 OkHttp 5 和 kotlinx-serialization，**不需要增加依赖**（openai-kotlin 会额外引入 Ktor，APK 会大一点）；
 2. 我们只用到 4 个接口，代码量很小；
 3. 各家"OpenAI 兼容"其实有细微差异（是否支持 `response_format: json_object`、思考模型会返回 `reasoning_content`、个别平台不提供 `/models`），自己写的客户端更容易做兼容处理；
@@ -313,6 +313,76 @@ API Key 使用 `EncryptedSharedPreferences`（`androidx.security:security-crypto
 - **技术上可以直接用**：它们提供 OpenAI 兼容的 Base URL 和 Key，填到上面的「自定义」或对应预设里就行，不需要额外 SDK。
 - **需要注意条款**：部分 Coding Plan 写明只能在编程工具（Claude Code、Cline 等）中使用，或者有专用的 Base URL，用于其它用途可能违反条款或被限流。接入前要看清楚各家条款；文档和界面中建议注明"请确认您的订阅允许此用途"。
 - **用量估算**：翻译一小时视频的字幕大约需要 2~4 万输入 token 加 2~3 万输出 token（含上下文和 JSON 包装）。按量计费的模型（如 DeepSeek）一次也就几分钱，所以**不一定需要买订阅**；已经买了订阅的话，可以顺便复用。
+
+### 4.7 复用 RikkaHub 的大模型 / TTS 接入层（补充，推荐）
+
+[RikkaHub](https://github.com/rikkahub/rikkahub) 是一个开源的 Android 原生 LLM 聊天客户端（Kotlin，约 7.9k star，2026-10 仍在活跃更新）。它已经把"对接各家大模型 + TTS"这一层做得很完整，而且代码是按 Gradle 模块拆开的，**可以直接搬过来用，不用自己从零写**。
+
+#### 它有什么（基于 2026-10-01 master 源码）
+
+**`:ai` 模块（`me.rerere.ai`）—— 大模型接入层**
+
+| 内容 | 说明 |
+|---|---|
+| 统一接口 `Provider<T : ProviderSetting>` | `listModels()`、`generateText()`（非流式）、`streamText()`（流式）、`getBalance()`、Embedding、图像生成；无状态设计，配置作为参数传入 |
+| 三种协议的实现 | **OpenAI**（Chat Completions + Responses API）、**Claude**（Anthropic 原生，含 Prompt Cache）、**Google**（Gemini + Vertex AI 服务账号） |
+| 实用功能 | 拉取模型列表、余额查询（可配置 API 路径和 JSON 路径）、自定义 Header / Body、思考强度（ReasoningLevel）、**多 Key 轮询**（`KeyRoulette`）、错误解析、SSE 流式解析 |
+| 代码规模 | Provider 实现约 4,800 行 |
+
+**内置服务商预设**（`app/.../data/datastore/DefaultProviders.kt`，约 20 个），涵盖：OpenAI、DeepSeek、Moonshot (Kimi)、硅基流动、阿里云百炼 DashScope、智谱 BigModel、火山方舟 (豆包)、MiniMax（Anthropic 兼容地址）、阶跃星辰 StepFun、小米 MiMo、腾讯 TokenHub、xAI、OpenRouter、AIHubMix、302.AI、Vercel AI Gateway 等。这份列表是纯数据，可以直接参考或复制。
+
+**`:speech` 模块（`me.rerere.tts` / `me.rerere.asr`）—— 语音**
+
+| 内容 | 说明 |
+|---|---|
+| TTS 统一接口 `TTSProvider.generateSpeech(context, setting, request): Flow<AudioChunk>` | 输出音频块，可以直接写文件给配音流水线用 |
+| TTS 实现（12 个） | OpenAI、Gemini、**系统 TTS**、MiniMax、通义 Qwen、Groq、xAI、小米 MiMo、ElevenLabs、阶跃星辰、Fish Audio、**火山引擎** |
+| ASR 实现 | 火山引擎、阶跃星辰、MiMo、DashScope、OpenAI Realtime。注意这些是**麦克风实时识别**的控制器，不是"上传整段音频文件转写"，配音场景基本用不上 |
+| 缺少的部分 | **没有 Edge TTS、没有 Azure TTS**，需要我们自己补一个 `EdgeTTSProvider`（实现它的 `TTSProvider` 接口即可）；文件转写 ASR 也需要自己补（OpenAI 兼容 `/audio/transcriptions`，代码很少） |
+
+#### 和本项目的兼容性
+
+| 项目 | RikkaHub `:ai` / `:speech` | YTDLnis | 结论 |
+|---|---|---|---|
+| 网络 | OkHttp（+ okhttp-sse、logging） | OkHttp 5 | ✅ 一致，只需加 `okhttp-sse` |
+| 序列化 | kotlinx-serialization-json | 已有 | ✅ |
+| 协程 / 时间 | kotlinx-coroutines、kotlinx-datetime | 有协程，无 datetime | ✅ 加一个小依赖 |
+| 播放 | media3 | 已有 media3 1.9 | ✅ |
+| Compose | 依赖 Compose Material3；`ProviderSetting` 里有 `@Composable` 的 description 字段（`:ai` 中只有 1 个文件用到 Compose） | 以 View 为主，只引入了少量 Compose 运行时 | ⚠️ 建议把这几个 `@Composable` 字段删掉或改成字符串，就能去掉 Compose 依赖 |
+| 内部依赖 | 依赖 RikkaHub 的 `:common` 模块 | — | ⚠️ 需要把用到的少量工具类一起拷过来 |
+| 发布方式 | **没有发布到 Maven**，只能拷源码 | — | ⚠️ 以后同步上游需要手动合并 |
+
+#### 许可证（重要）
+
+- RikkaHub：**AGPL-3.0**；YTDLnis：**GPL-3.0**。
+- GPLv3 第 13 条明确允许和 AGPLv3 代码组合发布。组合后拷进来的那部分代码仍然遵守 AGPL，整个 App 继续开源发布就没问题。AGPL 额外的"通过网络提供服务也要开源"条款主要针对服务端，对本地运行的 App 影响很小。
+- 必须做到：保留原文件的版权和许可证声明，在 README / 关于页里注明来源，修改过的文件标注修改说明。
+- 以上是对许可证的一般理解，不是法律意见。如果以后要闭源或商业分发，就不能用这部分代码，要换成自己写的实现。
+
+#### 推荐的接入方式
+
+1. **把 RikkaHub 的 `ai` 模块拷进来作为 `:ai` 子模块**（`settings.gradle` 中 `include ':ai'`），保留包名 `me.rerere.ai`，方便以后和上游对比合并：
+   - 去掉 `ProviderSetting` 里的 `@Composable` 字段和 Material3 依赖；
+   - 拷入它依赖的 `:common` 工具类；
+   - 只保留 OpenAI / Claude / Google 三个 Provider，图像生成等不需要的接口可以留着不用。
+2. **从 `speech` 模块挑选需要的 TTS Provider** 放进 `:ai`（或单独的 `:speech` 模块）：OpenAI、系统 TTS、MiniMax、Qwen、火山引擎、Fish Audio 等。播放控制器（`TtsController`、`AudioPlayer`）不需要。
+3. **自己补的部分**（这部分很薄，是配音功能特有的）：
+   - `EdgeTTSProvider`（OkHttp WebSocket + `Sec-MS-GEC` 签名），实现 RikkaHub 的 `TTSProvider` 接口；
+   - `AzureTTSProvider`（官方 REST）；
+   - 文件转写 ASR（OpenAI 兼容 `/audio/transcriptions`）；
+   - 字幕翻译逻辑：调用 `provider.generateText()`（非流式就够了），加上分批、JSON 输出解析和重试。
+4. **服务商配置界面**：YTDLnis 是 View + Preference 风格，RikkaHub 的配置页是 Compose 写的，不直接复用。可以参考它的字段设计，自己用 PreferenceFragment / BottomSheet 写一个简化版：服务商列表、Base URL、Key、获取模型、测试连接。`DefaultProviders` 预设列表直接拿来用。
+5. 配置用 kotlinx-serialization 序列化成 JSON 存储，结构和 RikkaHub 的 `ProviderSetting` 保持一致，以后甚至可以支持"从 RikkaHub 导入服务商配置"。
+
+#### 三种做法对比（更新后的结论）
+
+| 做法 | 工作量 | 覆盖面 | 维护 |
+|---|---|---|---|
+| A. 自己用 OkHttp 写 OpenAI 兼容客户端（4.6 节） | 小（约 150 行） | 只有 OpenAI 兼容协议 | 自己维护 |
+| **B. 移植 RikkaHub `:ai` + 部分 `:speech`（推荐）** | 中（主要是去 Compose + 理顺依赖，约 1~2 天） | OpenAI / Claude / Gemini 原生 + 约 20 个服务商预设 + 12 种 TTS + 多 Key 轮询 + 余额查询 | 跟随上游手动同步；许可证变为 GPL+AGPL 组合 |
+| C. 引入 aallam/openai-kotlin 等第三方 SDK | 小 | 只有 OpenAI 兼容 | 多了 Ktor 依赖 |
+
+**结论**：如果能接受 AGPL 的约束（本项目本来就是 GPL 开源，基本没有障碍），**优先选 B**，大模型和大部分 TTS 都不用自己写，只需要补 Edge TTS、Azure TTS 和文件转写 ASR。要是之后发现移植成本比预期高，再退回 A 也来得及，两种做法对上层"翻译 / TTS 接口"的设计是一样的。
 
 ---
 
@@ -368,3 +438,4 @@ API Key 使用 `EncryptedSharedPreferences`（`androidx.security:security-crypto
 - generic-ai（KMP）：https://klibs.io/project/bay73/generic-ai
 - 阿里云百炼 Token Plan 介绍：https://developer.aliyun.com/article/1735382
 - 各家 Coding Plan / Token Plan 对比（2026-06）：https://blog.csdn.net/weixin_44733660/article/details/160397630
+- RikkaHub（AGPL-3.0，`ai` / `speech` 模块）：https://github.com/rikkahub/rikkahub
