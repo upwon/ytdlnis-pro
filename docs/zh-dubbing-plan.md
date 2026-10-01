@@ -45,25 +45,26 @@
 3. 语音引擎默认「微软 Edge」（免费，无需密钥），可点「试听音色」。
 4. 历史页长按选中视频 → 右上角菜单 → 「AI 中文配音」。完成后得到 `原文件名.zh.mp4`（可改为替换原文件），播放器里第一条音轨就是中文。
 
-### 验证情况（诚实说明）
+### 验证情况
+
+在 GitHub Actions 上跑 `.github/workflows/dubbing-ci.yml`（推送到分支会自动触发，也可手动触发），日志可直接查看。
 
 | 项目 | 状态 |
 |---|---|
-| 核心模块自动化测试 | ✅ 75 个测试，73 个通过，2 个联网测试按设计跳过（见下） |
-| 测试用的真实组件 | 真实 FFmpeg（生成视频、解码、混流、探测）；本地 MockWebServer 模拟 OpenAI 兼容服务和 Edge TTS 的 WebSocket 协议 |
-| 对真实 OpenRouter 免费模型的测试 | ⚠️ **没有运行**。测试已写好（`LiveTest`，只会调用价格为 0 的 `:free` 模型），但沙箱网络策略拒绝访问 `openrouter.ai` |
-| 对真实微软 Edge 服务的测试 | ⚠️ **没有运行**，原因同上（`speech.platform.bing.com` 被拒绝）。协议实现依据 `edge-tts` 的公开实现，只用本地模拟服务验证了报文流程 |
-| Android 代码（Worker、设置页、历史菜单等） | ⚠️ **没有编译，没有运行**。沙箱无法访问 `dl.google.com`，装不了 Android SDK。我用桩类对这些文件做过 Kotlin 类型检查（无错误），但真实 API 的差异、布局/导航问题、运行时权限等都没有验证 |
+| 核心模块自动化测试 | ✅ 75 个测试：真实 FFmpeg + 本地 MockWebServer（模拟 OpenAI 兼容服务和 Edge 的 WebSocket 协议），在 GitHub 运行器（Ubuntu）上全部通过 |
+| **真实微软 Edge TTS** | ✅ `LiveTest.edgeTtsProducesRealMandarinSpeech` 在 GitHub 运行器上通过：握手签名、WebSocket 报文、MP3 解码都是对真实服务验证的 |
+| **Android 应用编译** | ✅ `:app:assembleGithubDebug` 构建成功（资源合并、导航、Kotlin 编译、dex、打包）。注意：基线提交里 `strings.xml` 有重复的 `share`，会让资源合并失败，我已删掉重复项 |
+| 真实 OpenRouter 免费模型 | ⏳ 测试已就绪，但需要在仓库里添加 Actions 密钥 `OPENROUTER_API_KEY`（Settings → Secrets and variables → Actions）；没有密钥时该测试会被跳过。测试只会调用价格为 0 的 `:free` 模型 |
+| Android 运行时行为 | ⚠️ 没有在模拟器/真机上运行过：设置页的实际显示、历史页菜单、后台任务通知、系统 TTS 回退、SAF 路径等都还没验证 |
 
-在能联网的机器上运行联网测试：
+本地运行：
 
 ```bash
 cd dubbing-core
-OPENROUTER_API_KEY=sk-or-... gradle test --tests '*LiveTest*'     # 只调用免费模型
+gradle test                                                        # 离线测试，需要本机有 ffmpeg / ffprobe
+OPENROUTER_API_KEY=sk-or-... gradle test --tests '*LiveTest*'      # 只调用免费模型
 EDGE_TTS_LIVE=1 gradle test --tests '*LiveTest*'                   # 真实 Edge 语音
 ```
-
-全部离线测试：`cd dubbing-core && gradle test`（需要本机有 `ffmpeg` / `ffprobe`）。
 
 ### 已知限制 / 后续
 
