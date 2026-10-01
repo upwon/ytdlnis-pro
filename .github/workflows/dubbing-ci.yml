@@ -1,0 +1,126 @@
+name: Dubbing CI
+
+# Verifies the AI dubbing feature on a real runner (internet access, Android SDK, ffmpeg):
+#  - core: JVM tests with real ffmpeg, plus live tests against Microsoft Edge TTS and OpenRouter *free* models
+#  - android: compiles and assembles the app (debug) so the Android-side code is checked for real
+#
+# Optional repository secret: OPENROUTER_API_KEY (live translation test is skipped without it).
+
+on:
+  push:
+    paths:
+      - "dubbing-core/**"
+      - "app/**"
+      - "build.gradle"
+      - "settings.gradle"
+      - ".github/workflows/dubbing-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: dubbing-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Core tests (+ live)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: corretto
+          cache: gradle
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -hide_banner -version | head -1
+
+      - name: Network probe (OpenRouter + Edge hosts)
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set +e
+          echo "--- openrouter /models (public)"
+          curl -sS -m 30 -o /tmp/models.json -w "HTTP %{http_code}\n" https://openrouter.ai/api/v1/models
+          python3 - <<'PY'
+          import json
+          try:
+              d = json.load(open('/tmp/models.json'))['data']
+              free = [m['id'] for m in d if m['id'].endswith(':free')
+                      and float(m['pricing']['prompt']) == 0 and float(m['pricing']['completion']) == 0]
+              print(len(d), "models,", len(free), "free")
+              print("\n".join(free[:25]))
+          except Exception as e:
+              print("could not parse:", e)
+          PY
+          echo "--- key present: $([ -n "$OPENROUTER_API_KEY" ] && echo yes || echo no)"
+          echo "--- edge host reachable?"
+          curl -sS -m 15 -o /dev/null -w "HTTP %{http_code}\n" https://speech.platform.bing.com/ || true
+
+      - name: Run tests
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          EDGE_TTS_LIVE: "1"
+        run: |
+          chmod +x gradlew
+          ./gradlew -p dubbing-core test --console=plain
+
+      - name: Print live test output
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+          for fn in sorted(glob.glob('dubbing-core/build/test-results/test/*.xml')):
+              r = ET.parse(fn).getroot()
+              name = r.get('name').split('.')[-1]
+              print(f"{name}: tests={r.get('tests')} failures={r.get('failures')} errors={r.get('errors')} skipped={r.get('skipped')}")
+              if name == 'LiveTest':
+                  out = r.find('system-out')
+                  print((out.text or '').strip() if out is not None else '(no output)')
+                  for tc in r.findall('testcase'):
+                      st = 'SKIPPED' if tc.find('skipped') is not None else ('FAILED' if (tc.find('failure') is not None or tc.find('error') is not None) else 'passed')
+                      print(' -', tc.get('name'), st)
+                      for tag in ('failure', 'error'):
+                          el = tc.find(tag)
+                          if el is not None:
+                              print((el.get('message') or '')[:1500])
+          PY
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dubbing-core-test-report
+          path: dubbing-core/build/reports/tests/test
+
+  android:
+    name: Android build (debug)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: corretto
+          cache: gradle
+
+      - name: Assemble github debug
+        run: |
+          touch local.properties
+          chmod +x gradlew
+          ./gradlew :app:assembleGithubDebug --console=plain --stacktrace
