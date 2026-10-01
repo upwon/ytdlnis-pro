@@ -1,0 +1,23 @@
+1
+00:00:01,000 --> 00:00:04,200
+Welcome to this short demo video.
+
+2
+00:00:05,000 --> 00:00:08,500
+Today we will see how artificial intelligence can learn from examples.
+
+3
+00:00:09,000 --> 00:00:12,500
+It is simpler than most people think.
+
+4
+00:00:13,000 --> 00:00:16,500
+First, the model reads a lot of text and tries to predict the next word.
+
+5
+00:00:17,000 --> 00:00:20,000
+Then it slowly gets better with practice.
+
+6
+00:00:21,000 --> 00:00:23,500
+Thank you for watching, and see you next time.

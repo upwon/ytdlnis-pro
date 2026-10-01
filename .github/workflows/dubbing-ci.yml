@@ -7,6 +7,12 @@ name: Dubbing CI
 # Optional repository secret: OPENROUTER_API_KEY (live translation test is skipped without it).
 
 on:
+  workflow_dispatch:
+    inputs:
+      tests:
+        description: "Instrumented test class filter (empty = all dubbing tests)"
+        required: false
+        default: ""
   push:
     paths:
       - "dubbing-core/**"
@@ -14,7 +20,6 @@ on:
       - "build.gradle"
       - "settings.gradle"
       - ".github/workflows/dubbing-ci.yml"
-  workflow_dispatch:
 
 concurrency:
   group: dubbing-ci-${{ github.ref }}
@@ -124,3 +129,84 @@ jobs:
           touch local.properties
           chmod +x gradlew
           ./gradlew :app:assembleGithubDebug --console=plain --stacktrace
+
+  e2e:
+    name: Android emulator E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: corretto
+          cache: gradle
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build debug APK (installable artifact)
+        run: |
+          touch local.properties
+          chmod +x gradlew
+          ./gradlew :app:assembleGithubDebug --console=plain
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ytdlnis-dubbing-debug-apk
+          path: app/build/outputs/apk/github/debug/*.apk
+
+      - name: Run instrumented tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TEST_FILTER: ${{ github.event.inputs.tests }}
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 4096
+          script: bash .github/scripts/run-e2e.sh
+
+      - name: Summarize results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+          t = f = s = 0
+          for fn in sorted(glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True)):
+              r = ET.parse(fn).getroot()
+              for tc in r.iter('testcase'):
+                  t += 1
+                  bad = tc.find('failure') if tc.find('failure') is not None else tc.find('error')
+                  if bad is not None:
+                      f += 1
+                      print('FAILED', tc.get('classname').split('.')[-1], tc.get('name'))
+                      print((bad.get('message') or bad.text or '')[:2500])
+                  elif tc.find('skipped') is not None:
+                      s += 1
+                      print('SKIPPED', tc.get('name'))
+                  else:
+                      print('passed', tc.get('classname').split('.')[-1], tc.get('name'))
+          print(f'TOTAL {t} failed {f} skipped {s}')
+          PY
+
+      - name: Upload evidence (reports, logcat, screenshots)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidence
+          path: |
+            app/build/reports/androidTests
+            app/build/outputs/androidTest-results
+            e2e-logs
