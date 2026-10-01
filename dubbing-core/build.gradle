@@ -1,0 +1,39 @@
+// Plugin versions are resolved from settings.gradle (standalone build) or from the
+// root build.gradle (when this module is included in the Android build).
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+    id 'org.jetbrains.kotlin.plugin.serialization'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+dependencies {
+    api "com.squareup.okhttp3:okhttp:5.3.2"
+    api 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0'
+    api 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
+
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.jetbrains.kotlin:kotlin-test-junit:2.3.0"
+    testImplementation "com.squareup.okhttp3:mockwebserver3:5.3.2"
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
+}
+
+test {
+    useJUnit()
+    // Chinese metadata/paths are passed to ffmpeg on the command line; make the JVM use UTF-8 for that.
+    environment "LC_ALL", "C.UTF-8"
+    systemProperty "sun.jnu.encoding", "UTF-8"
+    systemProperty "file.encoding", "UTF-8"
+    testLogging { events "passed", "failed", "skipped"; exceptionFormat "full"; showStandardStreams = false }
+    // Live tests only run when these are set (never committed to the repo).
+    environment "OPENROUTER_API_KEY", System.getenv("OPENROUTER_API_KEY") ?: ""
+}

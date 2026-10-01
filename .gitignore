@@ -11,3 +11,6 @@
 *.png
 app/src/main/jniLibs
 .kotlin
+# standalone JVM module
+/dubbing-core/build
+/dubbing-core/.kotlin

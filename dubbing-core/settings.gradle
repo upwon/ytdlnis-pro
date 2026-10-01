@@ -1,0 +1,18 @@
+// Standalone so the pure-JVM core can be built and tested without the Android SDK:
+//   cd dubbing-core && gradle test
+pluginManagement {
+    plugins {
+        id 'org.jetbrains.kotlin.jvm' version '2.3.0'
+        id 'org.jetbrains.kotlin.plugin.serialization' version '2.3.0'
+    }
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+}
+rootProject.name = 'dubbing-core'

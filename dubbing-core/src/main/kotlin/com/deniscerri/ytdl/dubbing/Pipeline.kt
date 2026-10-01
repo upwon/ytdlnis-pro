@@ -1,0 +1,241 @@
+package com.deniscerri.ytdl.dubbing
+
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+
+data class DubbingConfig(
+    val voice: String = "zh-CN-XiaoxiaoNeural",
+    val baseRatePercent: Int = 0,
+    /** Upper bound for the speaking-rate boost requested from the TTS engine before ffmpeg tempo kicks in. */
+    val maxSynthRatePercent: Int = 40,
+    val charsPerSecond: Double = 4.5,
+    val ttsConcurrency: Int = 3,
+    val mergeSentences: Boolean = true,
+    val sourceLanguageCode: String = "en",
+    val asrSegmentSeconds: Int = 600,
+    val embedChineseSubtitle: Boolean = false,
+    val align: AlignConfig = AlignConfig(),
+    val mux: MuxOptions = MuxOptions(),
+)
+
+data class DubbingReport(
+    val cues: Int,
+    val spoken: Int,
+    val align: AlignReport,
+    val output: File,
+    val usedAsr: Boolean,
+)
+
+@Serializable
+private data class Checkpoint(val sourceHash: String, val cues: List<Cue>)
+
+/**
+ * subtitles (or speech recognition) -> translation -> TTS -> timeline alignment -> new audio track in the video.
+ * Every expensive step is checkpointed in `workDir`, so a failed run resumes without repeating API calls.
+ */
+class DubbingPipeline(
+    private val ffmpeg: FfmpegRunner,
+    private val translator: Translator,
+    private val tts: TtsProvider,
+    private val config: DubbingConfig = DubbingConfig(),
+    private val asr: AsrProvider? = null,
+    private val log: (String) -> Unit = {},
+    private val onProgress: (Progress) -> Unit = {},
+) {
+    private val json = Json { prettyPrint = false; ignoreUnknownKeys = true }
+
+    suspend fun run(video: File, subtitle: File?, workDir: File, output: File): DubbingReport {
+        workDir.mkdirs()
+        val info = ffmpeg.probe(video)
+        val checkpointFile = File(workDir, "cues.json")
+        val checkpointLock = Mutex()
+        suspend fun save(sourceHash: String, cues: List<Cue>) = checkpointLock.withLock {
+            val tmp = File(workDir, "cues.json.tmp")
+            tmp.writeText(json.encodeToString(Checkpoint(sourceHash, cues)))
+            Files.move(tmp.toPath(), checkpointFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+
+        // 1. Source text -------------------------------------------------------------------------
+        val usedAsr = subtitle == null
+        val sourceHash = if (subtitle != null) sha256(subtitle.readBytes())
+        else "asr:${video.length()}:${config.sourceLanguageCode}:${config.asrSegmentSeconds}"
+        var cues = loadCheckpoint(checkpointFile, sourceHash)
+        if (cues != null) {
+            log("Resuming from checkpoint (${cues.size} cues)")
+        } else {
+            onProgress(Progress(Stage.SOURCE, 0, 1))
+            cues = if (subtitle != null) {
+                SubtitleCleaner.normalize(SubtitleParser.parse(subtitle.readText()), config.mergeSentences)
+            } else {
+                recognize(video, info, workDir)
+            }
+            if (cues.isEmpty()) throw DubbingException("No spoken text found in the subtitles / audio")
+            save(sourceHash, cues)
+        }
+        onProgress(Progress(Stage.SOURCE, 1, 1))
+
+        // 2. Translate ---------------------------------------------------------------------------
+        cues = translator.translate(
+            cues,
+            onProgress = { d, t -> onProgress(Progress(Stage.TRANSLATE, d, t)) },
+            onBatch = { save(sourceHash, it) },
+        )
+        save(sourceHash, cues)
+
+        // 3. Text to speech ----------------------------------------------------------------------
+        cues = synthesize(cues, workDir, sourceHash, ::save)
+
+        // 4. Align -------------------------------------------------------------------------------
+        onProgress(Progress(Stage.ALIGN, 0, 1))
+        val pcm = File(workDir, "dub.pcm")
+        val alignReport = TimelineAligner(ffmpeg, config.align, log).align(
+            cues, workDir, if (info.durationMs > 0) info.durationMs else 0L, pcm
+        )
+        if (alignReport.clips == 0) throw DubbingException("No audio clips were produced")
+        onProgress(Progress(Stage.ALIGN, 1, 1))
+
+        // 5. Mux ---------------------------------------------------------------------------------
+        onProgress(Progress(Stage.MUX, 0, 1))
+        var muxOptions = config.mux
+        if (config.embedChineseSubtitle) {
+            val srt = File(workDir, "zh.srt").apply { writeText(SrtWriter.format(cues)) }
+            muxOptions = muxOptions.copy(extraSubtitle = srt)
+        }
+        val part = File(output.absoluteFile.parentFile, "${output.nameWithoutExtension}.part.${output.extension}")
+        output.absoluteFile.parentFile?.mkdirs()
+        val args = DubMuxer.buildArgs(video, pcm, part, info, muxOptions, config.align.sampleRate)
+        val r = ffmpeg.run(args)
+        if (!r.ok || !part.exists() || part.length() == 0L) {
+            part.delete()
+            throw DubbingException("ffmpeg failed to write the dubbed file:\n${r.log.takeLast(800)}")
+        }
+        Files.move(part.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        onProgress(Progress(Stage.MUX, 1, 1))
+
+        return DubbingReport(cues.size, alignReport.clips, alignReport, output, usedAsr)
+    }
+
+    private suspend fun synthesize(
+        input: List<Cue>,
+        workDir: File,
+        sourceHash: String,
+        save: suspend (String, List<Cue>) -> Unit,
+    ): List<Cue> = coroutineScope {
+        val ttsDir = File(workDir, "tts").apply { mkdirs() }
+        val cues = input.toMutableList()
+        val lock = Mutex()
+        val gate = Semaphore(max(1, config.ttsConcurrency))
+        val total = cues.size
+        var done = 0
+        onProgress(Progress(Stage.SYNTHESIZE, 0, total))
+
+        cues.indices.map { i ->
+            async {
+                gate.withPermit {
+                    val cue = input[i]
+                    val text = TtsText.clean(cue.zh)
+                    var result = cue
+                    val existing = cue.ttsFile?.let { File(workDir, it) }
+                    if (existing != null && existing.exists() && existing.length() > 0) {
+                        // already synthesized in a previous run
+                    } else if (!TtsText.speakable(text)) {
+                        result = cue.copy(ttsFile = null)
+                    } else {
+                        val file = File(ttsDir, "%05d.%s".format(cue.id, tts.fileExtension))
+                        try {
+                            retrying(3, 1000) {
+                                tts.synthesize(text, config.voice, estimateRatePercent(input, i), file)
+                                if (!file.exists() || file.length() == 0L) throw java.io.IOException("empty TTS output")
+                            }
+                        } catch (e: CancellationException) {
+                            file.delete()
+                            throw e
+                        } catch (e: Exception) {
+                            file.delete()
+                            throw DubbingException("Speech synthesis failed for cue ${cue.id}: ${e.message}", e)
+                        }
+                        result = cue.copy(ttsFile = "tts/${file.name}")
+                    }
+                    lock.withLock {
+                        cues[i] = result
+                        done++
+                        onProgress(Progress(Stage.SYNTHESIZE, done, total))
+                        if (done % 10 == 0) save(sourceHash, cues.toList())
+                    }
+                }
+            }
+        }.awaitAll()
+        save(sourceHash, cues.toList())
+        cues
+    }
+
+    /** Ask the voice to speak faster up front when the translation is long for its time slot. */
+    internal fun estimateRatePercent(all: List<Cue>, i: Int): Int {
+        val cue = all[i]
+        val natural = TtsText.spokenLength(cue.zh) / config.charsPerSecond
+        val next = all.getOrNull(i + 1)?.startMs
+        val windowMs = if (next == null) cue.durationMs
+        else max(cue.durationMs, min(next - cue.startMs, cue.durationMs + config.align.maxBorrowMs))
+        val window = max(config.align.minWindowMs, windowMs) / 1000.0
+        var rate = config.baseRatePercent
+        if (natural > window) {
+            rate = max(rate, ((natural / window - 1.0) * 100).roundToInt().coerceAtMost(config.maxSynthRatePercent))
+        }
+        return rate
+    }
+
+    private suspend fun recognize(video: File, info: MediaInfo, workDir: File): List<Cue> {
+        val provider = asr ?: throw DubbingException(
+            "This video has no subtitles and no speech-recognition service is configured"
+        )
+        if (info.audioStreams.isEmpty()) throw DubbingException("The video has no audio to recognise")
+        val dir = File(workDir, "asr").apply { deleteRecursively(); mkdirs() }
+        val seconds = config.asrSegmentSeconds
+        val r = ffmpeg.run(
+            listOf(
+                "-i", video.absolutePath, "-vn", "-map", "0:a:0", "-ac", "1", "-ar", "16000",
+                "-c:a", "libmp3lame", "-b:a", "32k",
+                "-f", "segment", "-segment_time", seconds.toString(), "-reset_timestamps", "1",
+                File(dir, "seg_%03d.mp3").absolutePath,
+            )
+        )
+        val segments = dir.listFiles { f -> f.name.startsWith("seg_") }?.sortedBy { it.name }.orEmpty()
+        if (!r.ok || segments.isEmpty()) throw DubbingException("Could not extract audio:\n${r.log.takeLast(500)}")
+
+        val all = ArrayList<Cue>()
+        segments.forEachIndexed { idx, file ->
+            val offset = idx * seconds * 1000L
+            val remaining = max(1L, info.durationMs - offset)
+            val part = provider.transcribe(file, config.sourceLanguageCode, min(seconds * 1000L, remaining))
+            part.forEach { all += it.copy(startMs = it.startMs + offset, endMs = it.endMs + offset) }
+            onProgress(Progress(Stage.SOURCE, idx + 1, segments.size))
+        }
+        return SubtitleCleaner.normalize(all, config.mergeSentences)
+    }
+
+    private fun loadCheckpoint(file: File, hash: String): List<Cue>? = try {
+        if (!file.exists()) null
+        else json.decodeFromString<Checkpoint>(file.readText()).takeIf { it.sourceHash == hash }?.cues
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun sha256(bytes: ByteArray) =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+}
