@@ -69,12 +69,13 @@ class DubbingHistoryUiTest {
         val ui = UiFlow(Env.ctx.packageName)
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
-            ui.ensureForeground {
+            ui.relaunch = {
                 Env.ctx.startActivity(
                     android.content.Intent(Env.ctx, MainActivity::class.java)
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 )
             }
+            ui.ensureForeground { ui.relaunch!!.invoke() }
             Thread.sleep(2_000)
             ui.shot("main")
             ui.dismissIfPresent("Cancel", "Not now", "Later", "OK")

@@ -65,7 +65,18 @@ class UiFlow(val pkg: String) {
     fun has(text: String): Boolean = device.hasObject(By.text(text))
     fun hasContains(text: String): Boolean = device.hasObject(By.textContains(text))
 
+    /** Set by the tests: brings their activity back to the front when the launcher steals window focus. */
+    var relaunch: (() -> Unit)? = null
+
+    private fun keepInFront() {
+        if (device.hasObject(By.pkg(pkg).depth(0))) return
+        Log.w(TAG, "app lost window focus: ${windowState()}")
+        relaunch?.invoke()
+        device.wait(Until.hasObject(By.pkg(pkg).depth(0)), 8_000)
+    }
+
     fun tap(text: String, timeoutMs: Long = 15_000) {
+        keepInFront()
         val o = find(text, timeoutMs) ?: fail("Cannot find '$text'")
         o.click()
         Log.i(TAG, "tapped '$text'")
@@ -112,8 +123,18 @@ class UiFlow(val pkg: String) {
     }
 
     fun typeInTextDialog(value: String) {
-        val edit = device.wait(Until.findObject(By.res(pkg, "url_edittext")), 10_000) ?: fail("Text dialog did not open")
-        edit.text = value
+        var typed = false
+        repeat(4) {
+            if (typed) return@repeat
+            keepInFront()
+            val edit = device.wait(Until.findObject(By.res(pkg, "url_edittext")), 10_000) ?: fail("Text dialog did not open")
+            edit.click()
+            edit.text = value
+            Thread.sleep(400)
+            typed = device.findObject(By.res(pkg, "url_edittext"))?.text == value
+            if (!typed) Log.w(TAG, "text was not accepted, retrying")
+        }
+        if (!typed) fail("Could not type into the dialog")
         shot("dialog-filled")
         tap("OK")
     }

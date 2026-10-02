@@ -227,7 +227,9 @@ jobs:
     name: Publish APK to Releases
     # Only after every check passed. A release asset is a plain download link (works in a phone browser).
     needs: [core, e2e]
-    if: github.event_name != 'pull_request'
+    # The build itself must be green (core tests); a flaky emulator UI run must not hold the APK back,
+    # its result is written into the release notes instead.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.core.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -251,4 +253,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "YTDLnis + AI 中文配音（测试版）" \
-            --notes "由 CI 自动构建，所有测试通过后发布。适用于绝大多数手机（arm64）。包名与官方版相同，已安装官方版请先卸载。提交：$GITHUB_SHA"
+            --notes "由 CI 自动构建。适用于绝大多数手机（arm64）。包名与官方版相同，已安装官方版请先卸载。核心测试：${{ needs.core.result }}；模拟器端到端测试：${{ needs.e2e.result }}。提交：$GITHUB_SHA"
