@@ -222,3 +222,33 @@ jobs:
             app/build/reports/androidTests
             app/build/outputs/androidTest-results
             e2e-logs
+
+  release:
+    name: Publish APK to Releases
+    # Only after every check passed. A release asset is a plain download link (works in a phone browser).
+    needs: [core, e2e]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ytdlnis-dubbing-debug-apk
+          path: apks
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          ls -la apks
+          ARM64=$(ls apks/*arm64-v8a*.apk | head -1)
+          echo "publishing $ARM64"
+          gh release delete dubbing-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create dubbing-latest "$ARM64" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "YTDLnis + AI 中文配音（测试版）" \
+            --notes "由 CI 自动构建，所有测试通过后发布。适用于绝大多数手机（arm64）。包名与官方版相同，已安装官方版请先卸载。提交：$GITHUB_SHA"
