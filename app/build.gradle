@@ -53,7 +53,7 @@ android {
         debug {
             enableV1Signing = true
             enableV2Signing = true
-            if (project.hasProperty("ci.keystore") && storeFile == null) {
+            if (project.hasProperty("ci.keystore")) {
                 storeFile = file(project.property("ci.keystore"))
                 storePassword = "ytdlnis-ci"
                 keyAlias = "ytdlnis"
