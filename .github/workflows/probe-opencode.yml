@@ -2,6 +2,9 @@ name: Probe OpenCode Zen
 # Manual: lists the models of the OpenCode Zen endpoint and sends one tiny translation request per free-looking model.
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/probe-opencode.yml"
 
 jobs:
   probe:
