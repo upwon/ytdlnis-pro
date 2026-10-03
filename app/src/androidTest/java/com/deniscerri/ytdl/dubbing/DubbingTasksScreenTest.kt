@@ -21,7 +21,10 @@ import com.deniscerri.ytdl.dubbing.DeviceTestEnv as Env
 class DubbingTasksScreenTest {
     private val device get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
-    private fun has(text: String, ms: Long = 6_000) = device.wait(Until.hasObject(By.textContains(text)), ms)
+    // UiFlow wakes the screen; a cold-started app on a busy emulator can take a while to show its first frame
+    private val ui by lazy { UiFlow(Env.ctx.packageName) }
+
+    private fun has(text: String, ms: Long = 25_000) = ui.findContains(text, ms) != null
 
     @Test fun showsStatusAndFiltersByIt() {
         val ctx = Env.ctx
@@ -29,7 +32,9 @@ class DubbingTasksScreenTest {
         DubbingStatusStore.add(ctx, DubbingTask(id = "t-done", title = "Task finished video", state = DubbingState.DONE, outputPath = "/sdcard/Movies/x.zh.mp4"))
         DubbingStatusStore.add(ctx, DubbingTask(id = "t-fail", title = "Task broken video", state = DubbingState.FAILED, message = "no subtitles found", historyId = 1))
         try {
-            ActivityScenario.launch(DubbingTasksActivity::class.java).use {
+            ActivityScenario.launch(DubbingTasksActivity::class.java).use { scenario ->
+                ui.relaunch = { scenario.recreate() }
+                ui.ensureForeground { scenario.recreate() }
                 assertTrue("done task visible", has("Task finished video"))
                 assertTrue("failed task visible", has("Task broken video"))
                 assertTrue("error message visible", has("no subtitles found"))
