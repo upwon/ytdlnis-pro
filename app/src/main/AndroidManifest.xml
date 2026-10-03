@@ -358,6 +358,12 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".ui.more.dubbing.DubbingTasksActivity"
+            android:configChanges="smallestScreenSize|layoutDirection|orientation|screenSize"
+            android:exported="false"
+            android:label="@string/dubbing_tasks"
+            android:parentActivityName=".MainActivity" />
+        <activity
             android:name=".ui.more.terminal.TerminalActivity"
             android:configChanges="smallestScreenSize|layoutDirection|orientation|screenSize"
             android:exported="true"

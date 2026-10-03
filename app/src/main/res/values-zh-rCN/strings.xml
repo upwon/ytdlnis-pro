@@ -669,4 +669,24 @@
     <string name="dubbing_test_ok">可以使用</string>
     <string name="dubbing_error">出错了</string>
     <string name="dubbing_base_url_missing">请先填写 API 地址</string>
+    <string name="dubbing_tasks">配音任务</string>
+    <string name="dubbing_tasks_summary">查看每个配音任务的进度、结果和报错</string>
+    <string name="dubbing_filter_all">全部</string>
+    <string name="dubbing_filter_running">进行中</string>
+    <string name="dubbing_filter_done">已完成</string>
+    <string name="dubbing_filter_failed">失败</string>
+    <string name="dubbing_state_queued">排队中</string>
+    <string name="dubbing_state_running">进行中</string>
+    <string name="dubbing_state_done">已完成</string>
+    <string name="dubbing_state_failed">失败</string>
+    <string name="dubbing_open_result">播放</string>
+    <string name="dubbing_retry">重试</string>
+    <string name="dubbing_remove">移除</string>
+    <string name="dubbing_clear_finished">清除已结束的任务</string>
+    <string name="dubbing_tasks_empty">还没有配音任务。在“下载”页长按视频，选择“AI 中文配音”。</string>
+    <string name="dubbing_cancelled">已取消</string>
+    <string name="dubbing_no_item">找不到对应的下载记录</string>
+    <string name="dubbing_view">查看</string>
+    <string name="dubbing_saved_to">已保存到 %1$s</string>
+    <string name="dubbing_interrupted">已中断（应用被关闭或任务被取消）</string>
 </resources>

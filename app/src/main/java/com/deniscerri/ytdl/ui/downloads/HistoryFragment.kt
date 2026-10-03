@@ -6,6 +6,7 @@ import android.content.DialogInterface
 import android.content.SharedPreferences
 import android.graphics.Canvas
 import android.graphics.Color
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -323,6 +324,7 @@ class HistoryFragment : Fragment(), HistoryPaginatedAdapter.OnItemClickListener{
                         deleteDialog.show()
                     }
                 }
+                R.id.dubbing_tasks -> openDubbingTasks()
                 R.id.copy_urls -> {
                     lifecycleScope.launch {
                         val urls = withContext(Dispatchers.IO){
@@ -405,6 +407,10 @@ class HistoryFragment : Fragment(), HistoryPaginatedAdapter.OnItemClickListener{
         }
     }
 
+
+    private fun openDubbingTasks() {
+        startActivity(Intent(requireContext(), com.deniscerri.ytdl.ui.more.dubbing.DubbingTasksActivity::class.java))
+    }
 
     private fun initChips() {
         val sortChip = fragmentView.findViewById<Chip>(R.id.sortChip)
@@ -686,7 +692,9 @@ class HistoryFragment : Fragment(), HistoryPaginatedAdapter.OnItemClickListener{
                                 .show()
                         } else {
                             DubbingScheduler.enqueueForHistory(requireContext(), selectedObjects)
-                            Toast.makeText(requireContext(), getString(R.string.dubbing_queued, selectedObjects.size), Toast.LENGTH_SHORT).show()
+                            Snackbar.make(fragmentView, getString(R.string.dubbing_queued, selectedObjects.size), Snackbar.LENGTH_LONG)
+                                .setAction(R.string.dubbing_view) { openDubbingTasks() }
+                                .show()
                         }
                         actionMode?.finish()
                     }

@@ -2,6 +2,8 @@ package com.deniscerri.ytdl.work
 
 import android.annotation.SuppressLint
 import android.app.Notification
+import android.app.PendingIntent
+import android.content.Intent
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -25,6 +27,10 @@ import com.deniscerri.ytdl.util.FileUtil
 import com.deniscerri.ytdl.util.NotificationUtil
 import com.deniscerri.ytdl.util.dubbing.DubbingFactory
 import com.deniscerri.ytdl.util.dubbing.DubbingPrefs
+import com.deniscerri.ytdl.util.dubbing.DubbingState
+import com.deniscerri.ytdl.util.dubbing.DubbingStatusStore
+import com.deniscerri.ytdl.util.dubbing.DubbingTask
+import com.deniscerri.ytdl.ui.more.dubbing.DubbingTasksActivity
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +47,17 @@ class DubbingWorker(
 ) : CoroutineWorker(context, params) {
 
     private var lastNotificationAt = 0L
+    private val taskId: String? get() = inputData.getString(KEY_TASK_ID)
+
+    private fun updateTask(change: (DubbingTask) -> DubbingTask) {
+        val id = taskId ?: return
+        runCatching { DubbingStatusStore.update(context, id, change) }
+    }
+
+    private fun contentIntent(): PendingIntent = PendingIntent.getActivity(
+        context, 0, Intent(context, DubbingTasksActivity::class.java),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
 
     override suspend fun getForegroundInfo(): ForegroundInfo =
         foregroundInfo(context.getString(R.string.dubbing_title), "", 0, 0)
@@ -50,6 +67,7 @@ class DubbingWorker(
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(true)
+            .setContentIntent(contentIntent())
             .setOnlyAlertOnce(true)
             .setSmallIcon(R.drawable.ic_launcher_foreground_large)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -79,6 +97,7 @@ class DubbingWorker(
             }
         )
         val text = if (p.total > 1) "$stage ${p.done}/${p.total}" else stage
+        updateTask { it.copy(state = DubbingState.RUNNING, stage = stage, done = p.done, total = p.total) }
         runCatching { NotificationManagerCompat.from(context).notify(FOREGROUND_ID, progressNotification(title, text, p.done, p.total)) }
     }
 
@@ -90,6 +109,7 @@ class DubbingWorker(
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setSmallIcon(R.drawable.ic_launcher_foreground_large)
+            .setContentIntent(contentIntent())
             .setAutoCancel(true)
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(RESULT_ID_BASE + (item.id % 10_000).toInt(), notification) }
@@ -97,8 +117,18 @@ class DubbingWorker(
 
     override suspend fun doWork(): Result {
         val dao = DBManager.getInstance(context).historyDao
-        val item = withContext(Dispatchers.IO) { resolveItem(dao) } ?: return Result.failure()
+        val item = withContext(Dispatchers.IO) { resolveItem(dao) }
+        if (item == null) {
+            updateTask { it.copy(state = DubbingState.FAILED, message = context.getString(R.string.dubbing_no_item)) }
+            return Result.failure()
+        }
         val title = item.title.ifBlank { context.getString(R.string.dubbing_title) }
+        updateTask {
+            it.copy(
+                state = DubbingState.RUNNING, historyId = item.id, title = item.title,
+                stage = context.getString(R.string.dubbing_stage_source), done = 0, total = 0, message = "",
+            )
+        }
 
         try {
             withContext(Dispatchers.IO) { RuntimeManager.init(context) }
@@ -130,12 +160,17 @@ class DubbingWorker(
             val newPath = withContext(Dispatchers.IO) { place(item, sourcePath, source, dubbed, outExt, dao) }
             runCatching { FileUtil.scanMedia(listOf(newPath), context) }
             workDir.deleteRecursively()
+            updateTask {
+                it.copy(state = DubbingState.DONE, outputPath = newPath, stage = "", message = context.getString(R.string.dubbing_done))
+            }
             showResult(item, true, context.getString(R.string.dubbing_done))
             return Result.success()
         } catch (e: CancellationException) {
+            updateTask { it.copy(state = DubbingState.FAILED, message = context.getString(R.string.dubbing_cancelled)) }
             throw e
         } catch (e: Exception) {
             android.util.Log.e(TAG, "dubbing failed", e)
+            updateTask { it.copy(state = DubbingState.FAILED, message = e.message ?: e.javaClass.simpleName) }
             showResult(item, false, "${context.getString(R.string.dubbing_failed)}: ${e.message}")
             return Result.failure()
         }
@@ -250,6 +285,7 @@ class DubbingWorker(
         const val KEY_DOWNLOAD_ID = "download_id"
         const val KEY_URL = "url"
         const val KEY_TYPE = "type"
+        const val KEY_TASK_ID = "task_id"
         private const val TAG = "DubbingWorker"
         private const val FOREGROUND_ID = 1_500_000_000
         private const val RESULT_ID_BASE = 1_500_100_000

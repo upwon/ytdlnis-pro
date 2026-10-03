@@ -69,6 +69,11 @@ object DubbingSettingsModule : SettingModule {
                 }
             }
 
+            "dubbing_tasks" -> pref.setOnPreferenceClickListener {
+                context.startActivity(android.content.Intent(context, com.deniscerri.ytdl.ui.more.dubbing.DubbingTasksActivity::class.java))
+                true
+            }
+
             "dubbing_fetch_models" -> pref.setOnPreferenceClickListener {
                 fetchModels(context, host)
                 true

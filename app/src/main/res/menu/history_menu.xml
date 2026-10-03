@@ -23,6 +23,12 @@
         app:showAsAction="always"/>
 
     <item
+        android:id="@+id/dubbing_tasks"
+        android:icon="@drawable/ic_translate"
+        android:title="@string/dubbing_tasks"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/copy_urls"
         android:icon="@drawable/ic_copy"
         android:title="@string/copy_urls"

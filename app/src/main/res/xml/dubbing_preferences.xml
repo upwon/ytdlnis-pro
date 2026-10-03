@@ -2,6 +2,12 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <Preference
+        app:icon="@drawable/baseline_downloading_24"
+        app:key="dubbing_tasks"
+        app:summary="@string/dubbing_tasks_summary"
+        app:title="@string/dubbing_tasks" />
+
     <PreferenceCategory android:title="@string/dubbing_llm_category">
         <ListPreference
             app:icon="@drawable/ic_dns"

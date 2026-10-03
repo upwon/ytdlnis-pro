@@ -668,4 +668,24 @@
     <string name="dubbing_test_ok">It works</string>
     <string name="dubbing_error">Error</string>
     <string name="dubbing_base_url_missing">Enter the API base URL first</string>
+    <string name="dubbing_tasks">Dubbing tasks</string>
+    <string name="dubbing_tasks_summary">See progress, results and errors of every dubbing job</string>
+    <string name="dubbing_filter_all">All</string>
+    <string name="dubbing_filter_running">In progress</string>
+    <string name="dubbing_filter_done">Done</string>
+    <string name="dubbing_filter_failed">Failed</string>
+    <string name="dubbing_state_queued">Waiting in queue</string>
+    <string name="dubbing_state_running">In progress</string>
+    <string name="dubbing_state_done">Done</string>
+    <string name="dubbing_state_failed">Failed</string>
+    <string name="dubbing_open_result">Play</string>
+    <string name="dubbing_retry">Retry</string>
+    <string name="dubbing_remove">Remove</string>
+    <string name="dubbing_clear_finished">Clear finished</string>
+    <string name="dubbing_tasks_empty">No dubbing jobs yet. Long-press a video in Downloads and choose “AI Chinese dubbing”.</string>
+    <string name="dubbing_cancelled">Cancelled</string>
+    <string name="dubbing_no_item">The history item no longer exists</string>
+    <string name="dubbing_view">View</string>
+    <string name="dubbing_saved_to">Saved to %1$s</string>
+    <string name="dubbing_interrupted">Interrupted (the app was closed or the job was cancelled)</string>
 </resources>
