@@ -122,6 +122,16 @@ class UiFlow(val pkg: String) {
         tap(text)
     }
 
+    /** Opens an edit-text preference by tapping [title]; taps again if the dialog does not show up (list still settling). */
+    fun openTextPreference(title: String) {
+        repeat(3) {
+            scrollAndTap(title)
+            if (device.wait(Until.hasObject(By.res(pkg, "url_edittext")), 4_000)) return
+            Log.w(TAG, "'$title' did not open its dialog, tapping again")
+            Thread.sleep(800)
+        }
+    }
+
     fun typeInTextDialog(value: String) {
         var typed = false
         repeat(4) {

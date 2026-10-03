@@ -99,7 +99,7 @@ class DubbingSettingsUiTest {
         assertEquals("https://api.deepseek.com/v1", Env.prefs.getString(DubbingPrefs.LLM_BASE_URL, null))
         assertEquals("deepseek-chat", Env.prefs.getString(DubbingPrefs.LLM_MODEL, null))
 
-        ui.scrollAndTap("API key")
+        ui.openTextPreference("API key")
         ui.typeInTextDialog("sk-test-1234567890")
         Thread.sleep(300)
         assertEquals("sk-test-1234567890", Env.prefs.getString(DubbingPrefs.LLM_API_KEY, null))
@@ -121,7 +121,7 @@ class DubbingSettingsUiTest {
         assertEquals("https://openrouter.ai/api/v1", Env.prefs.getString(DubbingPrefs.LLM_BASE_URL, null))
         ui.shot("provider-openrouter")
 
-        ui.scrollAndTap("API key")
+        ui.openTextPreference("API key")
         ui.typeInTextDialog(key)
         // the summary is refreshed asynchronously after the dialog closes
         ui.check(ui.findContains("••••••${key.takeLast(4)}", 8_000) != null, "masked key expected in summary")
