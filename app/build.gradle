@@ -44,6 +44,15 @@ android {
             }
         }
     }catch(IOException ignored){}
+
+    // minSdk >= 24 makes AGP skip the v1 (JAR) signature; some OEM installers (realme/ColorOS) then reject the
+    // package with "no signature file". Keep v1 alongside v2/v3 so it installs everywhere.
+    signingConfigs {
+        debug {
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
     defaultConfig {
         applicationId "top.lifeee.ytdlnis"
         minSdk 24
