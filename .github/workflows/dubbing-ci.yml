@@ -163,11 +163,27 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # The debug keystore is created by Gradle on a fresh runner, so every build used to carry a different signature
+      # and could not be installed over the previous one. Keep one keystore in the Actions cache (never in the repo).
+      - name: Restore signing key
+        id: signing-key
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: dubbing-debug-keystore-v1
+
       - name: Build debug APK (installable artifact)
         run: |
           touch local.properties
           chmod +x gradlew
           ./gradlew :app:assembleGithubDebug --console=plain
+
+      - name: Save signing key
+        if: always() && steps.signing-key.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: dubbing-debug-keystore-v1
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
