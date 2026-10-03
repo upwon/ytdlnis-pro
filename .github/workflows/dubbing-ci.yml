@@ -253,4 +253,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "YTDLnis + AI 中文配音（测试版）" \
-            --notes "由 CI 自动构建。适用于绝大多数手机（arm64）。包名与官方版相同，已安装官方版请先卸载。核心测试：${{ needs.core.result }}；模拟器端到端测试：${{ needs.e2e.result }}。提交：$GITHUB_SHA"
+            --notes "由 CI 自动构建。适用于绝大多数手机（arm64）。包名为 top.lifeee.ytdlnis，可与官方版共存。核心测试：${{ needs.core.result }}；模拟器端到端测试：${{ needs.e2e.result }}。提交：$GITHUB_SHA"
