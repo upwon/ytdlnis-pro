@@ -680,6 +680,26 @@ class HistoryFragment : Fragment(), HistoryPaginatedAdapter.OnItemClickListener{
                     }
                     true
                 }
+                R.id.translate_sub_zh -> {
+                    lifecycleScope.launch {
+                        val selectedObjects = getSelectedIDs()
+                        historyAdapter.clearCheckedItems()
+                        if (!DubbingFactory(requireContext()).llmConfigured()) {
+                            MaterialAlertDialogBuilder(requireContext())
+                                .setTitle(R.string.dubbing_not_configured)
+                                .setMessage(R.string.dubbing_not_configured_desc)
+                                .setPositiveButton(R.string.ok, null)
+                                .show()
+                        } else {
+                            DubbingScheduler.enqueueSubtitlesForHistory(requireContext(), selectedObjects)
+                            Snackbar.make(fragmentView, getString(R.string.dubbing_subtitle_queued, selectedObjects.size), Snackbar.LENGTH_LONG)
+                                .setAction(R.string.dubbing_view) { openDubbingTasks() }
+                                .show()
+                        }
+                        actionMode?.finish()
+                    }
+                    true
+                }
                 R.id.dub_zh -> {
                     lifecycleScope.launch {
                         val selectedObjects = getSelectedIDs()

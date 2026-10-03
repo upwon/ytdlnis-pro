@@ -99,6 +99,34 @@ class PipelineTest {
             }.joinToString("\n\n"))
         }
 
+    @Test fun subtitleOnlyWritesAnExternalChineseSrtWithoutSynthesizing() = runBlocking {
+        val tts = ToneTts()
+        val out = File(dir, "subs/v.zh.srt")
+        val n = pipeline(tts).translateSubtitles(null, srt(1000, 6000, 11000, name = "only.en.srt"), File(dir, "work-sub"), out)
+
+        assertEquals(3, n)
+        assertEquals(0, tts.calls.size, "no speech is generated in subtitle-only mode")
+        assertEquals(1, chatCalls.get())
+        val parsed = SubtitleParser.parse(out.readText())
+        assertEquals(listOf("这是第1句话", "这是第2句话", "这是第3句话"), parsed.map { it.src })
+        assertEquals(listOf(1000L, 6000L, 11000L), parsed.map { it.startMs })
+    }
+
+    @Test fun bilingualSubtitleHasChineseAboveTheOriginal() = runBlocking {
+        val out = File(dir, "subs/v.bi.srt")
+        pipeline().translateSubtitles(null, srt(1000, name = "bi.en.srt"), File(dir, "work-bi"), out, bilingual = true)
+        val lines = out.readText().lines()
+        assertEquals("这是第1句话", lines[2])
+        assertEquals("This is sentence number 1.", lines[3])
+    }
+
+    @Test fun dubbingCanAlsoWriteTheExternalSubtitle() = runBlocking {
+        val ext = File(dir, "ext/v.zh.srt")
+        pipeline(config = DubbingConfig(externalSubtitle = ext)).run(video(12, "ext.mp4"), srt(1000, 5000, name = "ext.en.srt"), File(dir, "work-ext"), File(dir, "ext/out.mp4"))
+        assertTrue(ext.exists())
+        assertTrue(ext.readText().contains("这是第2句话"))
+    }
+
     @Test fun subtitleToDubbedVideoEndToEnd() = runBlocking {
         val v = video(30)
         val starts = longArrayOf(1000, 6000, 11000, 16000, 21000, 26000)

@@ -689,4 +689,13 @@
     <string name="dubbing_view">查看</string>
     <string name="dubbing_saved_to">已保存到 %1$s</string>
     <string name="dubbing_interrupted">已中断（应用被关闭或任务被取消）</string>
+    <string name="dubbing_translate_subtitles">翻译字幕为中文（外挂）</string>
+    <string name="dubbing_external_subtitle">同时保存外挂中文字幕</string>
+    <string name="dubbing_external_subtitle_summary">配音时在视频旁额外生成“名称.zh.srt”文件</string>
+    <string name="dubbing_subtitle_bilingual">双语字幕</string>
+    <string name="dubbing_subtitle_bilingual_summary">中文在上、英文原文在下（对外挂字幕生效）</string>
+    <string name="dubbing_kind_subtitle">字幕翻译</string>
+    <string name="dubbing_subtitle_exists">视频旁已有中文字幕</string>
+    <string name="dubbing_subtitle_done">已保存中文字幕</string>
+    <string name="dubbing_subtitle_queued">已将 %1$d 个项目加入字幕翻译队列</string>
 </resources>

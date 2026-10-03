@@ -145,6 +145,17 @@ object SrtWriter {
         }
     }
 
+    /** Chinese line on top, original line below it. Falls back to the original when a cue was not translated. */
+    fun formatBilingual(cues: List<Cue>): String = buildString {
+        var n = 1
+        for (c in cues) {
+            if (c.zh.isBlank() && c.src.isBlank()) continue
+            append(n++).append('\n')
+            append(time(c.startMs)).append(" --> ").append(time(c.endMs)).append('\n')
+            append(if (c.zh.isBlank()) c.src.trim() else c.zh.trim() + "\n" + c.src.trim()).append("\n\n")
+        }
+    }
+
     internal fun time(ms: Long): String {
         val h = ms / 3_600_000
         val m = ms / 60_000 % 60

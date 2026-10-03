@@ -62,6 +62,8 @@ class DubbingWorkerDeviceTest {
         val out = File(dir, "Demo clip.zh.mp4")
         assertTrue("dubbed file missing; dir has ${dir.list()?.toList()}", out.exists() && out.length() > 10_000)
         assertTrue("original must stay untouched", video.exists())
+        val extSrt = File(dir, "Demo clip.zh.srt")
+        assertTrue("external Chinese subtitle expected next to the dubbed video", extSrt.exists() && extSrt.readText().any { it in '\u4e00'..'\u9fff' })
         val info = Env.probe(out)
         Log.i(TAG, "dubbed probe: $info")
         assertTrue(info.hasVideo)
@@ -88,6 +90,30 @@ class DubbingWorkerDeviceTest {
         assertTrue(dubbed.title.contains("Chinese dub"))
         // temp work dir cleaned up
         assertFalse(File(com.deniscerri.ytdl.util.FileUtil.getCachePath(Env.ctx), "dubbing/${item.id}").exists())
+    }
+
+    @Test fun translatesSubtitlesOnlyIntoAnExternalSrt() {
+        val model = Env.workingFreeModel()
+        Env.configure(model, engine = DubbingPrefs.ENGINE_EDGE, fallback = false)
+        val dir = Env.newWorkDir()
+        val video = Env.installDemo(dir, "Sub only")
+        val item = Env.insertHistory(video.absolutePath, "Sub only title")
+
+        val result = runBlocking {
+            TestListenableWorkerBuilder<DubbingWorker>(Env.ctx)
+                .setInputData(workDataOf(DubbingWorker.KEY_HISTORY_ID to item.id, DubbingWorker.KEY_MODE to DubbingWorker.MODE_SUBTITLE))
+                .build().doWork()
+        }
+        assertTrue("worker result: $result", result is ListenableWorker.Result.Success)
+
+        val srt = File(dir, "Sub only.zh.srt")
+        assertTrue("subtitle file missing; dir has ${dir.list()?.toList()}", srt.exists())
+        val text = srt.readText()
+        Log.i(TAG, "translated srt:\n$text")
+        assertTrue("Chinese text expected", text.any { it in '\u4e00'..'\u9fff' })
+        assertTrue("timestamps kept", text.contains("00:00:01,000 -->"))
+        assertFalse("no dubbed video in subtitle-only mode", File(dir, "Sub only.zh.mp4").exists())
+        assertEquals("history unchanged", 1, Env.historyByUrl(item.url).size)
     }
 
     @Test fun replaceOriginalWithMixedBackgroundAndSoftSubtitle() {

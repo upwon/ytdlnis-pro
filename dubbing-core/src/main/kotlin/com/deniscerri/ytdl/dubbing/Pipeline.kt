@@ -30,6 +30,9 @@ data class DubbingConfig(
     val sourceLanguageCode: String = "en",
     val asrSegmentSeconds: Int = 600,
     val embedChineseSubtitle: Boolean = false,
+    /** When set, the Chinese subtitles are also written to this external .srt next to the dubbed video. */
+    val externalSubtitle: File? = null,
+    val externalSubtitleBilingual: Boolean = false,
     val align: AlignConfig = AlignConfig(),
     val mux: MuxOptions = MuxOptions(),
 )
@@ -60,21 +63,30 @@ class DubbingPipeline(
 ) {
     private val json = Json { prettyPrint = false; ignoreUnknownKeys = true }
 
-    suspend fun run(video: File, subtitle: File?, workDir: File, output: File): DubbingReport {
+    private class Prepared(
+        val cues: List<Cue>,
+        val sourceHash: String,
+        val save: suspend (String, List<Cue>) -> Unit,
+        val usedAsr: Boolean,
+    )
+
+    /** Steps 1 and 2 (source text + translation), shared by dubbing and subtitle-only runs. Checkpointed in [workDir]. */
+    private suspend fun prepare(video: File?, info: MediaInfo?, subtitle: File?, workDir: File): Prepared {
         workDir.mkdirs()
-        val info = ffmpeg.probe(video)
         val checkpointFile = File(workDir, "cues.json")
         val checkpointLock = Mutex()
-        suspend fun save(sourceHash: String, cues: List<Cue>) = checkpointLock.withLock {
-            val tmp = File(workDir, "cues.json.tmp")
-            tmp.writeText(json.encodeToString(Checkpoint(sourceHash, cues)))
-            Files.move(tmp.toPath(), checkpointFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        val save: suspend (String, List<Cue>) -> Unit = { hash, list ->
+            checkpointLock.withLock {
+                val tmp = File(workDir, "cues.json.tmp")
+                tmp.writeText(json.encodeToString(Checkpoint(hash, list)))
+                Files.move(tmp.toPath(), checkpointFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
         }
 
         // 1. Source text -------------------------------------------------------------------------
         val usedAsr = subtitle == null
         val sourceHash = if (subtitle != null) sha256(subtitle.readBytes())
-        else "asr:${video.length()}:${config.sourceLanguageCode}:${config.asrSegmentSeconds}"
+        else "asr:${video?.length()}:${config.sourceLanguageCode}:${config.asrSegmentSeconds}"
         var cues = loadCheckpoint(checkpointFile, sourceHash)
         if (cues != null) {
             log("Resuming from checkpoint (${cues.size} cues)")
@@ -83,7 +95,7 @@ class DubbingPipeline(
             cues = if (subtitle != null) {
                 SubtitleCleaner.normalize(SubtitleParser.parse(subtitle.readText()), config.mergeSentences)
             } else {
-                recognize(video, info, workDir)
+                recognize(video ?: throw DubbingException("No subtitle source"), info ?: ffmpeg.probe(video), workDir)
             }
             if (cues.isEmpty()) throw DubbingException("No spoken text found in the subtitles / audio")
             save(sourceHash, cues)
@@ -97,9 +109,38 @@ class DubbingPipeline(
             onBatch = { save(sourceHash, it) },
         )
         save(sourceHash, cues)
+        return Prepared(cues, sourceHash, save, usedAsr)
+    }
+
+    /**
+     * Subtitle-only mode: translates the English subtitles (or the recognized speech) and writes an external SRT.
+     * With [bilingual] each entry holds the Chinese line above the original line. Returns the number of entries.
+     */
+    suspend fun translateSubtitles(video: File?, subtitle: File?, workDir: File, output: File, bilingual: Boolean = false): Int {
+        if (subtitle == null && video == null) throw DubbingException("No subtitle source")
+        val prepared = prepare(video, null, subtitle, workDir)
+        val text = if (bilingual) SrtWriter.formatBilingual(prepared.cues) else SrtWriter.format(prepared.cues)
+        output.absoluteFile.parentFile?.mkdirs()
+        output.writeText(text)
+        return prepared.cues.count { it.zh.isNotBlank() }
+    }
+
+    suspend fun run(video: File, subtitle: File?, workDir: File, output: File): DubbingReport {
+        val info = ffmpeg.probe(video)
+        val prepared = prepare(video, info, subtitle, workDir)
+        var cues = prepared.cues
+        val sourceHash = prepared.sourceHash
+        val save = prepared.save
+        val usedAsr = prepared.usedAsr
+        config.externalSubtitle?.let { external ->
+            external.absoluteFile.parentFile?.mkdirs()
+            external.writeText(
+                if (config.externalSubtitleBilingual) SrtWriter.formatBilingual(cues) else SrtWriter.format(cues)
+            )
+        }
 
         // 3. Text to speech ----------------------------------------------------------------------
-        cues = synthesize(cues, workDir, sourceHash, ::save)
+        cues = synthesize(cues, workDir, sourceHash, save)
 
         // 4. Align -------------------------------------------------------------------------------
         onProgress(Progress(Stage.ALIGN, 0, 1))

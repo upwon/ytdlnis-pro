@@ -78,13 +78,31 @@ class DubbingFactory(private val context: Context) {
         fun close() { system?.shutdown() }
     }
 
-    fun create(log: (String) -> Unit, onProgress: (Progress) -> Unit): Setup {
+    /** Stands in for the TTS engine in subtitle-only runs, which never synthesize anything. */
+    private object NoTts : TtsProvider {
+        override val fileExtension = "mp3"
+        override suspend fun synthesize(text: String, voice: String, ratePercent: Int, outFile: java.io.File) =
+            throw DubbingException("Speech is not used in subtitle-only mode")
+    }
+
+    /**
+     * @param externalSubtitle where to also write the Chinese .srt while dubbing (null = do not)
+     * @param needTts false for subtitle-only runs, so a missing TTS setup does not block translating subtitles
+     */
+    fun create(
+        log: (String) -> Unit,
+        onProgress: (Progress) -> Unit,
+        externalSubtitle: java.io.File? = null,
+        needTts: Boolean = true,
+    ): Setup {
         if (!llmConfigured()) throw DubbingException("Translation service is not configured")
-        val (tts, system) = createTts(log)
+        val (tts, system) = if (needTts) createTts(log) else (NoTts as TtsProvider) to null
         val config = DubbingConfig(
             voice = voice(),
             baseRatePercent = prefs.getInt(DubbingPrefs.SPEECH_RATE, 0),
             embedChineseSubtitle = prefs.getBoolean(DubbingPrefs.EMBED_SUBTITLE, false),
+            externalSubtitle = externalSubtitle,
+            externalSubtitleBilingual = prefs.getBoolean(DubbingPrefs.SUBTITLE_BILINGUAL, false),
             mux = MuxOptions(
                 keepOriginal = prefs.getBoolean(DubbingPrefs.KEEP_ORIGINAL, true),
                 originalVolume = prefs.getInt(DubbingPrefs.ORIGINAL_VOLUME, 0) / 100.0,

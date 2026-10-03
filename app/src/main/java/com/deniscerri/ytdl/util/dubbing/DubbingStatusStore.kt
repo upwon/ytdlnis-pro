@@ -21,7 +21,12 @@ data class DubbingTask(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = createdAt,
     val workId: String = "",
+    /** "dub" or "subtitle" (translate subtitles only). */
+    val kind: String = KIND_DUB,
 )
+
+const val KIND_DUB = "dub"
+const val KIND_SUBTITLE = "subtitle"
 
 /**
  * Small persistent list of dubbing jobs shown on the "dubbing tasks" screen. Kept in SharedPreferences (not Room)
@@ -71,7 +76,7 @@ object DubbingStatusStore {
         .put("id", t.id).put("historyId", t.historyId).put("title", t.title).put("state", t.state.name)
         .put("stage", t.stage).put("done", t.done).put("total", t.total).put("message", t.message)
         .put("outputPath", t.outputPath).put("createdAt", t.createdAt).put("updatedAt", t.updatedAt)
-        .put("workId", t.workId)
+        .put("workId", t.workId).put("kind", t.kind)
 
     private fun fromJson(o: JSONObject) = DubbingTask(
         id = o.getString("id"),
@@ -86,5 +91,6 @@ object DubbingStatusStore {
         createdAt = o.optLong("createdAt"),
         updatedAt = o.optLong("updatedAt"),
         workId = o.optString("workId"),
+        kind = o.optString("kind", KIND_DUB),
     )
 }

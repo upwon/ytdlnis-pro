@@ -26,6 +26,8 @@ object DubbingPrefs {
     const val KEEP_ORIGINAL = "dubbing_keep_original"
     const val ORIGINAL_VOLUME = "dubbing_original_volume"
     const val EMBED_SUBTITLE = "dubbing_embed_subtitle"
+    const val EXTERNAL_SUBTITLE = "dubbing_external_subtitle"
+    const val SUBTITLE_BILINGUAL = "dubbing_subtitle_bilingual"
     const val REPLACE_ORIGINAL = "dubbing_replace_original"
     const val AUTO = "dubbing_auto"
     const val GLOSSARY = "dubbing_glossary"

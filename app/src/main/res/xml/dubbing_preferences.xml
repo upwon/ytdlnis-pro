@@ -195,6 +195,22 @@
 
         <SwitchPreferenceCompat
             android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="true"
+            app:icon="@drawable/ic_subtitles_alternative"
+            app:key="dubbing_external_subtitle"
+            app:summary="@string/dubbing_external_subtitle_summary"
+            app:title="@string/dubbing_external_subtitle" />
+
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_subtitles_alternative"
+            app:key="dubbing_subtitle_bilingual"
+            app:summary="@string/dubbing_subtitle_bilingual_summary"
+            app:title="@string/dubbing_subtitle_bilingual" />
+
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
             app:defaultValue="false"
             app:icon="@drawable/ic_folder_delete"
             app:key="dubbing_replace_original"

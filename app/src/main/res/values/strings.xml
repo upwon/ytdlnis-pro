@@ -688,4 +688,13 @@
     <string name="dubbing_view">View</string>
     <string name="dubbing_saved_to">Saved to %1$s</string>
     <string name="dubbing_interrupted">Interrupted (the app was closed or the job was cancelled)</string>
+    <string name="dubbing_translate_subtitles">Translate subtitles to Chinese</string>
+    <string name="dubbing_external_subtitle">Also save external Chinese subtitles</string>
+    <string name="dubbing_external_subtitle_summary">Writes a separate “name.zh.srt” next to the video when dubbing</string>
+    <string name="dubbing_subtitle_bilingual">Bilingual subtitles</string>
+    <string name="dubbing_subtitle_bilingual_summary">Chinese line above the original English line (applies to the external subtitle file)</string>
+    <string name="dubbing_kind_subtitle">Subtitle translation</string>
+    <string name="dubbing_subtitle_exists">Chinese subtitles already exist next to the video</string>
+    <string name="dubbing_subtitle_done">Chinese subtitles saved</string>
+    <string name="dubbing_subtitle_queued">Added %1$d item(s) to the subtitle translation queue</string>
 </resources>

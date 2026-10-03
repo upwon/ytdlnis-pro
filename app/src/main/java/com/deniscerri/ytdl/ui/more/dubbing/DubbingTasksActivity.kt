@@ -60,7 +60,8 @@ class DubbingTasksActivity : BaseActivity() {
             onOpen = { task -> runCatching { FileUtil.openFileIntent(this, task.outputPath) } },
             onRetry = { task ->
                 DubbingStatusStore.remove(this, task.id)
-                DubbingScheduler.enqueueForHistory(this, listOf(task.historyId))
+                if (task.kind == com.deniscerri.ytdl.util.dubbing.KIND_SUBTITLE) DubbingScheduler.enqueueSubtitlesForHistory(this, listOf(task.historyId))
+                else DubbingScheduler.enqueueForHistory(this, listOf(task.historyId))
                 lifecycleScope.launch { delay(400); refresh() }
             },
             onRemove = { task ->
@@ -161,7 +162,8 @@ class DubbingTasksActivity : BaseActivity() {
             }
             val time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(t.updatedAt))
             c.findViewById<TextView>(R.id.task_status).apply {
-                text = listOf(ctx.getString(statusRes), detail, time).filter { it.isNotBlank() }.joinToString(" · ")
+                val kind = if (t.kind == com.deniscerri.ytdl.util.dubbing.KIND_SUBTITLE) ctx.getString(R.string.dubbing_kind_subtitle) else ""
+                text = listOf(kind, ctx.getString(statusRes), detail, time).filter { it.isNotBlank() }.joinToString(" · ")
                 setTextColor(
                     when (t.state) {
                         DubbingState.FAILED -> com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorError)
@@ -193,7 +195,7 @@ class DubbingTasksActivity : BaseActivity() {
             }
 
             c.findViewById<MaterialButton>(R.id.task_open).apply {
-                isVisible = t.state == DubbingState.DONE && t.outputPath.isNotBlank()
+                isVisible = t.state == DubbingState.DONE && t.outputPath.isNotBlank() && t.kind == com.deniscerri.ytdl.util.dubbing.KIND_DUB
                 setOnClickListener { onOpen(t) }
             }
             c.findViewById<MaterialButton>(R.id.task_retry).apply {

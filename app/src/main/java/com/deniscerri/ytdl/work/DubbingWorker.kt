@@ -48,6 +48,7 @@ class DubbingWorker(
 
     private var lastNotificationAt = 0L
     private val taskId: String? get() = inputData.getString(KEY_TASK_ID)
+    private val subtitleOnly: Boolean get() = inputData.getString(KEY_MODE) == MODE_SUBTITLE
 
     private fun updateTask(change: (DubbingTask) -> DubbingTask) {
         val id = taskId ?: return
@@ -140,6 +141,10 @@ class DubbingWorker(
             val workDir = File(FileUtil.getCachePath(context), "dubbing/${item.id}").apply { mkdirs() }
             val source = withContext(Dispatchers.IO) { localCopy(sourcePath, workDir) }
 
+            if (subtitleOnly) {
+                return translateSubtitleOnly(item, sourcePath, source, workDir, title)
+            }
+
             val subtitle = withContext(Dispatchers.IO) {
                 findSidecarSubtitle(source) ?: fetchSubtitle(item.url, workDir)
             }
@@ -147,9 +152,13 @@ class DubbingWorker(
             val outExt = if (source.extension.lowercase() in AUDIO_EXTENSIONS) "m4a" else source.extension.ifEmpty { "mp4" }
             val dubbed = File(workDir, "dubbed.$outExt")
 
+            val externalSrt = File(workDir, "zh.srt").takeIf {
+                PreferenceManager.getDefaultSharedPreferences(context).getBoolean(DubbingPrefs.EXTERNAL_SUBTITLE, true)
+            }
             val setup = DubbingFactory(context).create(
                 log = { android.util.Log.d(TAG, it) },
                 onProgress = { showProgress(title, it) },
+                externalSubtitle = externalSrt,
             )
             try {
                 setup.pipeline.run(source, subtitle, workDir, dubbed)
@@ -157,7 +166,7 @@ class DubbingWorker(
                 setup.close()
             }
 
-            val newPath = withContext(Dispatchers.IO) { place(item, sourcePath, source, dubbed, outExt, dao) }
+            val newPath = withContext(Dispatchers.IO) { place(item, sourcePath, source, dubbed, outExt, dao, externalSrt?.takeIf { it.exists() }) }
             runCatching { FileUtil.scanMedia(listOf(newPath), context) }
             workDir.deleteRecursively()
             updateTask {
@@ -173,6 +182,55 @@ class DubbingWorker(
             updateTask { it.copy(state = DubbingState.FAILED, message = e.message ?: e.javaClass.simpleName) }
             showResult(item, false, "${context.getString(R.string.dubbing_failed)}: ${e.message}")
             return Result.failure()
+        }
+    }
+
+    /**
+     * Subtitle-only mode: translate the English subtitles (or the speech, if recognition is on) into an external
+     * "<name>.zh.srt" beside the video. Nothing is synthesized and the video is not touched.
+     */
+    private suspend fun translateSubtitleOnly(item: HistoryItem, sourcePath: String, source: File, workDir: File, title: String): Result {
+        val existing = withContext(Dispatchers.IO) { findChineseSubtitle(source) }
+        if (existing != null) {
+            updateTask { it.copy(state = DubbingState.DONE, outputPath = existing.absolutePath, stage = "", message = context.getString(R.string.dubbing_subtitle_exists)) }
+            showResult(item, true, context.getString(R.string.dubbing_subtitle_exists))
+            return Result.success()
+        }
+        val subtitle = withContext(Dispatchers.IO) { findSidecarSubtitle(source) ?: fetchSubtitle(item.url, workDir) }
+        val isContent = sourcePath.startsWith("content://")
+        val outDir = if (isContent) File(workDir, "out").apply { deleteRecursively(); mkdirs() } else source.parentFile!!
+        val out = File(outDir, "${source.nameWithoutExtension}.zh.srt")
+        val bilingual = PreferenceManager.getDefaultSharedPreferences(context).getBoolean(DubbingPrefs.SUBTITLE_BILINGUAL, false)
+
+        val setup = DubbingFactory(context).create(
+            log = { android.util.Log.d(TAG, it) },
+            onProgress = { showProgress(title, it) },
+            needTts = false,
+        )
+        try {
+            setup.pipeline.translateSubtitles(source, subtitle, workDir, out, bilingual)
+        } finally {
+            setup.close()
+        }
+        val finalPath = if (isContent) {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            val destination = if (item.type == DownloadType.audio) prefs.getString("music_path", FileUtil.getDefaultAudioPath())!!
+            else prefs.getString("video_path", FileUtil.getDefaultVideoPath())!!
+            FileUtil.moveFile(outDir, context, destination, false) { }.firstOrNull() ?: throw IllegalStateException("Could not save the subtitle file")
+        } else out.absolutePath
+        workDir.deleteRecursively()
+        updateTask { it.copy(state = DubbingState.DONE, outputPath = finalPath, stage = "", message = context.getString(R.string.dubbing_subtitle_done)) }
+        showResult(item, true, context.getString(R.string.dubbing_subtitle_done))
+        return Result.success()
+    }
+
+    /** A Chinese subtitle file that already sits next to the video ("name.zh.srt", "name.zh-Hans.vtt" ...). */
+    private fun findChineseSubtitle(source: File): File? {
+        val dir = source.parentFile ?: return null
+        val base = source.nameWithoutExtension
+        return dir.listFiles()?.firstOrNull { f ->
+            f.isFile && f.name.startsWith("$base.") && f.extension.lowercase() in SUBTITLE_EXTENSIONS &&
+                f.nameWithoutExtension.removePrefix("$base.").lowercase().let { it.startsWith("zh") || it.startsWith("chi") }
         }
     }
 
@@ -240,6 +298,7 @@ class DubbingWorker(
         dubbed: File,
         ext: String,
         dao: HistoryDao,
+        srt: File? = null,
     ): String {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val replace = prefs.getBoolean(DubbingPrefs.REPLACE_ORIGINAL, false)
@@ -248,6 +307,7 @@ class DubbingWorker(
         if (replace && !isContent && source.extension.equals(ext, ignoreCase = true)) {
             dubbed.copyTo(source, overwrite = true)
             dubbed.delete()
+            srt?.copyTo(File(source.parentFile, "${source.nameWithoutExtension}.zh.srt"), overwrite = true)
             dao.update(item.copy(filesize = source.length()))
             return source.absolutePath
         }
@@ -256,6 +316,7 @@ class DubbingWorker(
         if (isContent) {
             val outDir = File(dubbed.parentFile, "out").apply { deleteRecursively(); mkdirs() }
             dubbed.copyTo(File(outDir, "${source.nameWithoutExtension}.zh.$ext"), overwrite = true)
+            srt?.copyTo(File(outDir, "${source.nameWithoutExtension}.zh.srt"), overwrite = true)
             val destination = if (item.type == DownloadType.audio) {
                 prefs.getString("music_path", FileUtil.getDefaultAudioPath())!!
             } else {
@@ -266,6 +327,7 @@ class DubbingWorker(
             val target = File(source.parentFile, "${source.nameWithoutExtension}.zh.$ext")
             dubbed.copyTo(target, overwrite = true)
             dubbed.delete()
+            srt?.copyTo(File(source.parentFile, "${source.nameWithoutExtension}.zh.srt"), overwrite = true)
             newPath = target.absolutePath
         }
         dao.insert(
@@ -286,6 +348,8 @@ class DubbingWorker(
         const val KEY_URL = "url"
         const val KEY_TYPE = "type"
         const val KEY_TASK_ID = "task_id"
+        const val KEY_MODE = "mode"
+        const val MODE_SUBTITLE = "subtitle"
         private const val TAG = "DubbingWorker"
         private const val FOREGROUND_ID = 1_500_000_000
         private const val RESULT_ID_BASE = 1_500_100_000
