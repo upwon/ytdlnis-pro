@@ -28,6 +28,14 @@ class OpenAiClientTest {
     private fun ok(body: String) = MockResponse.Builder().code(200).addHeader("Content-Type", "application/json").body(body).build()
 
     @Test
+    fun dailyQuotaIsNotRetried() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(429).body("""{"error":{"message":"Rate limit exceeded: free-models-per-day"}}""").build())
+        val e = assertFailsWith<ApiException> { client().chat(ChatRequest("m", listOf(ChatMessage("user", "hi")))) }
+        assertTrue(e.quotaExhausted)
+        assertEquals(1, server.requestCount, "a used-up daily quota must not be hammered with retries")
+    }
+
+    @Test
     fun chatSendsAuthHeadersAndBodyAndParsesReply() = runBlocking {
         server.enqueue(ok("""{"choices":[{"message":{"role":"assistant","content":"你好"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":3}}"""))
         val r = client(headers = mapOf("X-Title" to "ytdlnis")).chat(

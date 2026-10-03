@@ -697,4 +697,7 @@
     <string name="dubbing_subtitle_exists">Chinese subtitles already exist next to the video</string>
     <string name="dubbing_subtitle_done">Chinese subtitles saved</string>
     <string name="dubbing_subtitle_queued">Added %1$d item(s) to the subtitle translation queue</string>
+    <string name="dubbing_err_quota">The free daily quota of this translation service is used up. Wait until tomorrow, switch to another provider (Groq, Gemini, DeepSeek...) in Settings → AI Chinese dubbing, or top up the account.</string>
+    <string name="dubbing_err_auth">The API key was rejected. Check the key and the API address in Settings → AI Chinese dubbing.</string>
+    <string name="dubbing_err_model">The service does not know this model name or address. Use “Fetch model list” and pick one.</string>
 </resources>

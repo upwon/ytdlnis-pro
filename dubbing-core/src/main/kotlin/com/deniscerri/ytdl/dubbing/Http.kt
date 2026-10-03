@@ -14,7 +14,12 @@ import kotlin.coroutines.resumeWithException
 
 class ApiException(val code: Int, val body: String, val retryAfterMs: Long? = null) :
     Exception("HTTP $code: ${body.take(300)}") {
-    val retryable: Boolean get() = code == 408 || code == 425 || code == 429 || code >= 500
+    /** A daily / account quota is used up: waiting a few seconds will not help, so do not burn more requests. */
+    val quotaExhausted: Boolean
+        get() = code == 429 && body.lowercase().let {
+            "per-day" in it || "per_day" in it || "daily" in it || "insufficient_quota" in it || "exceeded your current quota" in it
+        }
+    val retryable: Boolean get() = !quotaExhausted && (code == 408 || code == 425 || code == 429 || code >= 500)
 }
 
 internal suspend fun Call.await(): Response = suspendCancellableCoroutine { cont ->

@@ -21,6 +21,7 @@ import com.deniscerri.ytdl.database.DBManager
 import com.deniscerri.ytdl.database.dao.HistoryDao
 import com.deniscerri.ytdl.database.enums.DownloadType
 import com.deniscerri.ytdl.database.models.HistoryItem
+import com.deniscerri.ytdl.dubbing.ApiException
 import com.deniscerri.ytdl.dubbing.Progress
 import com.deniscerri.ytdl.dubbing.Stage
 import com.deniscerri.ytdl.util.FileUtil
@@ -179,8 +180,9 @@ class DubbingWorker(
             throw e
         } catch (e: Exception) {
             android.util.Log.e(TAG, "dubbing failed", e)
-            updateTask { it.copy(state = DubbingState.FAILED, message = e.message ?: e.javaClass.simpleName) }
-            showResult(item, false, "${context.getString(R.string.dubbing_failed)}: ${e.message}")
+            val reason = friendlyReason(e)
+            updateTask { it.copy(state = DubbingState.FAILED, message = reason) }
+            showResult(item, false, "${context.getString(R.string.dubbing_failed)}: $reason")
             return Result.failure()
         }
     }
@@ -232,6 +234,23 @@ class DubbingWorker(
             f.isFile && f.name.startsWith("$base.") && f.extension.lowercase() in SUBTITLE_EXTENSIONS &&
                 f.nameWithoutExtension.removePrefix("$base.").lowercase().let { it.startsWith("zh") || it.startsWith("chi") }
         }
+    }
+
+    /** Turns the common API failures into something actionable instead of a raw JSON error body. */
+    private fun friendlyReason(e: Throwable): String {
+        var t: Throwable? = e
+        while (t != null) {
+            if (t is ApiException) {
+                return when {
+                    t.quotaExhausted -> context.getString(R.string.dubbing_err_quota)
+                    t.code == 401 || t.code == 403 -> context.getString(R.string.dubbing_err_auth)
+                    t.code == 404 -> context.getString(R.string.dubbing_err_model)
+                    else -> t.message ?: e.javaClass.simpleName
+                }
+            }
+            t = t.cause
+        }
+        return e.message ?: e.javaClass.simpleName
     }
 
     private fun resolveItem(dao: HistoryDao): HistoryItem? {
