@@ -47,10 +47,18 @@ android {
 
     // minSdk >= 24 makes AGP skip the v1 (JAR) signature; some OEM installers (realme/ColorOS) then reject the
     // package with "no signature file". Keep v1 alongside v2/v3 so it installs everywhere.
+    // CI passes -Pci.keystore=<file> (a key kept in the Actions cache, never in the repo) so that every build carries
+    // the same signature and can be installed over the previous one. A developer's keystore.properties wins.
     signingConfigs {
         debug {
             enableV1Signing = true
             enableV2Signing = true
+            if (project.hasProperty("ci.keystore") && storeFile == null) {
+                storeFile = file(project.property("ci.keystore"))
+                storePassword = "ytdlnis-ci"
+                keyAlias = "ytdlnis"
+                keyPassword = "ytdlnis-ci"
+            }
         }
     }
     defaultConfig {

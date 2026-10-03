@@ -163,27 +163,40 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # The debug keystore is created by Gradle on a fresh runner, so every build used to carry a different signature
-      # and could not be installed over the previous one. Keep one keystore in the Actions cache (never in the repo).
+      # Gradle creates a throw-away debug keystore on a fresh runner, so every build used to carry a different signature
+      # and could not be installed over the previous one. Keep one key in the Actions cache (never in the repo).
       - name: Restore signing key
         id: signing-key
         uses: actions/cache/restore@v4
         with:
-          path: ~/.android/debug.keystore
-          key: dubbing-debug-keystore-v1
+          path: ~/ci-keystore
+          key: dubbing-ci-keystore-v2
+
+      - name: Create signing key if missing
+        run: |
+          if [ ! -f "$HOME/ci-keystore/ci.jks" ]; then
+            mkdir -p "$HOME/ci-keystore"
+            keytool -genkeypair -keystore "$HOME/ci-keystore/ci.jks" -storetype PKCS12 \
+              -storepass ytdlnis-ci -keypass ytdlnis-ci -alias ytdlnis -keyalg RSA -keysize 2048 \
+              -validity 36500 -dname "CN=YTDLnis Pro, O=lifeee.top, C=CN"
+            echo "created a new signing key"
+          else
+            echo "reusing the cached signing key"
+          fi
+          keytool -list -keystore "$HOME/ci-keystore/ci.jks" -storepass ytdlnis-ci | tail -3
 
       - name: Build debug APK (installable artifact)
         run: |
           touch local.properties
           chmod +x gradlew
-          ./gradlew :app:assembleGithubDebug --console=plain
+          ./gradlew :app:assembleGithubDebug --console=plain -Pci.keystore="$HOME/ci-keystore/ci.jks"
 
       - name: Save signing key
         if: always() && steps.signing-key.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ~/.android/debug.keystore
-          key: dubbing-debug-keystore-v1
+          path: ~/ci-keystore
+          key: dubbing-ci-keystore-v2
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
