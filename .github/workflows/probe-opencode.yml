@@ -1,0 +1,30 @@
+name: Probe OpenCode Zen
+# Manual: lists the models of the OpenCode Zen endpoint and sends one tiny translation request per free-looking model.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: List models (no key)
+        run: |
+          curl -sS -m 30 -w '\nHTTP %{http_code}\n' https://opencode.ai/zen/v1/models | head -c 6000
+
+      - name: Tiny chat request per model, key "public"
+        run: |
+          ids=$(curl -sS -m 30 https://opencode.ai/zen/v1/models | python3 -c "
+          import json,sys
+          try:
+              d=json.load(sys.stdin)
+              print('\n'.join(m['id'] for m in d.get('data',[])))
+          except Exception as e:
+              print('', end='')")
+          echo "models: $ids"
+          for m in $ids; do
+            case "$m" in *free*|big-pickle|grok-code*) ;; *) continue;; esac
+            echo "=== $m"
+            curl -sS -m 60 -w '\nHTTP %{http_code}\n' https://opencode.ai/zen/v1/chat/completions \
+              -H 'Authorization: Bearer public' -H 'Content-Type: application/json' \
+              -d "{\"model\":\"$m\",\"max_tokens\":60,\"messages\":[{\"role\":\"user\",\"content\":\"Translate to Chinese: Hello, how are you?\"}]}" | head -c 800
+          done
