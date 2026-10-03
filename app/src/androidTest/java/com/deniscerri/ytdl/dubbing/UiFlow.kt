@@ -126,13 +126,19 @@ class UiFlow(val pkg: String) {
         var typed = false
         repeat(4) {
             if (typed) return@repeat
-            keepInFront()
-            val edit = device.wait(Until.findObject(By.res(pkg, "url_edittext")), 10_000) ?: fail("Text dialog did not open")
-            edit.click()
-            edit.text = value
-            Thread.sleep(400)
-            typed = device.findObject(By.res(pkg, "url_edittext"))?.text == value
-            if (!typed) Log.w(TAG, "text was not accepted, retrying")
+            try {
+                keepInFront()
+                val edit = device.wait(Until.findObject(By.res(pkg, "url_edittext")), 10_000) ?: fail("Text dialog did not open")
+                edit.click()
+                edit.text = value
+                Thread.sleep(400)
+                typed = device.findObject(By.res(pkg, "url_edittext"))?.text == value
+                if (!typed) Log.w(TAG, "text was not accepted, retrying")
+            } catch (e: androidx.test.uiautomator.StaleObjectException) {
+                // the dialog was re-laid out under us (focus change); look it up again
+                Log.w(TAG, "dialog view went stale, retrying")
+                Thread.sleep(500)
+            }
         }
         if (!typed) fail("Could not type into the dialog")
         shot("dialog-filled")
