@@ -19,7 +19,7 @@ adb logcat -v time > e2e-logs/logcat-full.txt &
 LOGCAT_PID=$!
 
 # Runtime permissions the real app asks for on first launch
-PKG=com.deniscerri.ytdl
+PKG=top.lifeee.ytdlnis
 
 ARGS=(--console=plain --stacktrace "-Pandroid.injected.build.abi=x86_64" "-Pandroid.testInstrumentationRunnerArguments.OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}")
 if [ -n "${TEST_FILTER:-}" ]; then
