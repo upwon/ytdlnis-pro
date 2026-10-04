@@ -746,4 +746,6 @@
     <string name="dubbing_err_timeout">服务响应太慢（超时）。已完成的部分已保存，点“重试”会接着做。换一个更快的模型会好些。</string>
     <string name="dubbing_detail_idle">距上次有进展已过</string>
     <string name="dubbing_cancel">取消</string>
+    <string name="dubbing_concurrency">同时翻译的请求数</string>
+    <string name="dubbing_concurrency_summary">免费套餐常常只允许同时 1 个（选择服务商时会自动设好）。遇到限速报错时调低。</string>
 </resources>

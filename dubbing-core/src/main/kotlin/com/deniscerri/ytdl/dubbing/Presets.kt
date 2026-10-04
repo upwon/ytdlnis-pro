@@ -1,16 +1,22 @@
 package com.deniscerri.ytdl.dubbing
 
 /** Starting points for the settings screen; every field stays editable by the user. */
-data class LlmPreset(val name: String, val baseUrl: String, val defaultModel: String = "")
+data class LlmPreset(
+    val name: String,
+    val baseUrl: String,
+    val defaultModel: String = "",
+    /** Requests sent at the same time; free tiers often allow only one. */
+    val concurrency: Int = 2,
+)
 
 object Presets {
     val llm = listOf(
         LlmPreset("OpenRouter", "https://openrouter.ai/api/v1"),
         LlmPreset("DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat"),
         LlmPreset("阿里云百炼 (通义千问)", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
-        LlmPreset("智谱 GLM", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"),
+        LlmPreset("智谱 GLM（Flash 系列免费，1 并发）", "https://open.bigmodel.cn/api/paas/v4", "glm-4.7-flash", concurrency = 1),
         LlmPreset("Kimi (Moonshot)", "https://api.moonshot.cn/v1", "moonshot-v1-8k"),
-        LlmPreset("硅基流动 SiliconFlow", "https://api.siliconflow.cn/v1"),
+        LlmPreset("硅基流动 SiliconFlow（小模型免费）", "https://api.siliconflow.cn/v1", "Qwen/Qwen2.5-7B-Instruct"),
         LlmPreset("火山方舟 (豆包)", "https://ark.cn-beijing.volces.com/api/v3"),
         LlmPreset("OpenAI", "https://api.openai.com/v1", "gpt-4o-mini"),
         LlmPreset("Groq (免费额度大，也提供 Whisper)", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),

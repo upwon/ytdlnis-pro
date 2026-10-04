@@ -140,7 +140,10 @@ class DubbingFactory(private val context: Context) {
         val translator = LlmTranslator(
             client = llmClient(),
             model = str(DubbingPrefs.LLM_MODEL),
-            config = TranslatorConfig(glossary = str(DubbingPrefs.GLOSSARY)),
+            config = TranslatorConfig(
+                glossary = str(DubbingPrefs.GLOSSARY),
+                concurrency = (str(DubbingPrefs.LLM_CONCURRENCY, "2").toIntOrNull() ?: 2).coerceIn(1, 3),
+            ),
             log = log,
         )
         val pipeline = DubbingPipeline(

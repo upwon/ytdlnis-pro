@@ -745,4 +745,6 @@
     <string name="dubbing_err_timeout">The service took too long to answer (timeout). Finished parts are saved: “Retry” continues where it stopped. A faster model or a smaller load may help.</string>
     <string name="dubbing_detail_idle">Since the last progress</string>
     <string name="dubbing_cancel">Cancel</string>
+    <string name="dubbing_concurrency">Simultaneous translation requests</string>
+    <string name="dubbing_concurrency_summary">Free plans often allow only 1 at a time (set automatically when you pick a provider). Lower it if you see rate-limit errors.</string>
 </resources>

@@ -6,6 +6,7 @@ object DubbingPrefs {
     const val LLM_BASE_URL = "dubbing_llm_base_url"
     const val LLM_API_KEY = "dubbing_llm_api_key"
     const val LLM_MODEL = "dubbing_llm_model"
+    const val LLM_CONCURRENCY = "dubbing_llm_concurrency"
 
     const val ASR_ENABLED = "dubbing_asr_enabled"
     const val ASR_BASE_URL = "dubbing_asr_base_url"

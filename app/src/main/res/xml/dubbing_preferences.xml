@@ -35,6 +35,15 @@
             app:title="@string/dubbing_model"
             app:useSimpleSummaryProvider="true" />
 
+        <ListPreference
+            app:icon="@drawable/baseline_settings_suggest_24"
+            app:key="dubbing_llm_concurrency"
+            app:defaultValue="2"
+            app:entries="@array/dubbing_concurrency_entries"
+            app:entryValues="@array/dubbing_concurrency_values"
+            app:summary="@string/dubbing_concurrency_summary"
+            app:title="@string/dubbing_concurrency" />
+
         <Preference
             app:icon="@drawable/baseline_format_list_numbered_24"
             app:key="dubbing_fetch_models"
