@@ -701,4 +701,6 @@
     <string name="dubbing_err_quota">这个翻译服务今日的免费额度已用完。可以明天再试，或在 设置 → AI 中文配音 里换成别的服务商（Groq、Gemini、DeepSeek 等），也可以给账户充值。</string>
     <string name="dubbing_err_auth">API 密钥被拒绝。请检查 设置 → AI 中文配音 里的密钥和 API 地址。</string>
     <string name="dubbing_err_model">服务商不认识这个模型名或地址。请点“获取模型列表”重新选择。</string>
+    <string name="dubbing_search_model">搜索模型（输入关键词）</string>
+    <string name="dubbing_free_only">只看免费模型</string>
 </resources>

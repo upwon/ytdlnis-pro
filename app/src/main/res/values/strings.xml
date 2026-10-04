@@ -700,4 +700,6 @@
     <string name="dubbing_err_quota">The free daily quota of this translation service is used up. Wait until tomorrow, switch to another provider (Groq, Gemini, DeepSeek...) in Settings → AI Chinese dubbing, or top up the account.</string>
     <string name="dubbing_err_auth">The API key was rejected. Check the key and the API address in Settings → AI Chinese dubbing.</string>
     <string name="dubbing_err_model">The service does not know this model name or address. Use “Fetch model list” and pick one.</string>
+    <string name="dubbing_search_model">Search models (keywords)</string>
+    <string name="dubbing_free_only">Free models only</string>
 </resources>

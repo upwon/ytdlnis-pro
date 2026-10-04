@@ -2,7 +2,15 @@ package com.deniscerri.ytdl.ui.more.settings.dubbing
 
 import android.content.Context
 import android.media.MediaPlayer
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ListView
 import android.widget.Toast
+import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
@@ -121,17 +129,63 @@ object DubbingSettingsModule : SettingModule {
                         showDialog(host, context.getString(R.string.dubbing_error), context.getString(R.string.no_results))
                         return@onSuccess
                     }
-                    val labels = sorted.map { if (it.isFree) "🆓 ${it.id}" else it.id }.toTypedArray()
-                    MaterialAlertDialogBuilder(host.getHostContext())
-                        .setTitle(R.string.dubbing_choose_model)
-                        .setItems(labels) { _, i ->
-                            (host.findPref(DubbingPrefs.LLM_MODEL) as? EditTextPreference)?.text = sorted[i].id
-                        }
-                        .setNegativeButton(R.string.cancel, null)
-                        .show()
+                    showModelPicker(host, sorted) { id ->
+                        (host.findPref(DubbingPrefs.LLM_MODEL) as? EditTextPreference)?.text = id
+                    }
                 }
                 .onFailure { showDialog(host, context.getString(R.string.dubbing_error), it.message.orEmpty()) }
         }
+    }
+
+    /** Model list with a keyword filter (several words = all must match) and a "free only" switch. */
+    private fun showModelPicker(host: SettingHost, models: List<ModelInfo>, onPick: (String) -> Unit) {
+        val ctx = host.getHostContext()
+        val dp = ctx.resources.displayMetrics.density
+        val search = EditText(ctx).apply {
+            id = R.id.dubbing_model_search
+            hint = ctx.getString(R.string.dubbing_search_model)
+            setSingleLine()
+        }
+        val freeOnly = CheckBox(ctx).apply {
+            text = ctx.getString(R.string.dubbing_free_only)
+            isVisible = models.any { it.isFree }
+        }
+        val adapter = ArrayAdapter<String>(ctx, android.R.layout.simple_list_item_1, mutableListOf())
+        val list = ListView(ctx).apply { this.adapter = adapter }
+        var shown: List<ModelInfo> = models
+
+        fun label(m: ModelInfo) = if (m.isFree) "🆓 ${m.id}" else m.id
+        val dialog = MaterialAlertDialogBuilder(ctx)
+            .setTitle(ctx.getString(R.string.dubbing_choose_model))
+            .setView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                val pad = (20 * dp).toInt()
+                setPadding(pad, (8 * dp).toInt(), pad, 0)
+                addView(search)
+                addView(freeOnly)
+                addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (360 * dp).toInt()))
+            })
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+
+        fun refresh() {
+            val words = search.text.toString().lowercase().split(' ').filter { it.isNotEmpty() }
+            shown = models.filter { m ->
+                (!freeOnly.isChecked || m.isFree) &&
+                    words.all { w -> m.id.lowercase().contains(w) || m.name?.lowercase()?.contains(w) == true }
+            }
+            adapter.clear()
+            adapter.addAll(shown.map(::label))
+            dialog.setTitle("${ctx.getString(R.string.dubbing_choose_model)} (${shown.size}/${models.size})")
+        }
+        search.doAfterTextChanged { refresh() }
+        freeOnly.setOnCheckedChangeListener { _, _ -> refresh() }
+        list.setOnItemClickListener { _, _, i, _ ->
+            shown.getOrNull(i)?.let { onPick(it.id) }
+            dialog.dismiss()
+        }
+        dialog.show()
+        refresh()
     }
 
     private fun testTranslation(context: Context, host: SettingHost) {
