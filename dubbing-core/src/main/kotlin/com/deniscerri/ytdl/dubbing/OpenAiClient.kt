@@ -73,6 +73,8 @@ class OpenAiCompatClient(
     private val retryBaseDelayMs: Long = 1500,
     /** Hard limit for one chat request. The read timeout alone never fires when a gateway keeps the line alive while queueing. */
     private val chatTimeoutSeconds: Long = 150,
+    /** Receives one line per request outcome (reply head, HTTP error, timeout, retry) for the app's details view. */
+    private val log: (String) -> Unit = {},
 ) : ChatClient {
     private val base = baseUrl.trim().trimEnd('/')
     private val json = Json { ignoreUnknownKeys = true }
@@ -85,7 +87,19 @@ class OpenAiCompatClient(
         return b
     }
 
-    override suspend fun chat(request: ChatRequest): ChatResult = retrying(maxAttempts, retryBaseDelayMs) {
+    private fun describe(e: Exception): String = when (e) {
+        is ApiException -> "HTTP ${e.code}: ${e.body.replace(Regex("\\s+"), " ").take(240)}"
+        is java.io.InterruptedIOException -> "no answer in time (timeout)"
+        else -> "${e.javaClass.simpleName}: ${e.message}"
+    }
+
+    override suspend fun chat(request: ChatRequest): ChatResult = retrying(
+        maxAttempts, retryBaseDelayMs,
+        onError = { attempt, e, willRetry ->
+            log("Model request failed (attempt $attempt/$maxAttempts): ${describe(e)}" + if (willRetry) " — trying again" else "")
+        },
+    ) {
+        val t0 = System.currentTimeMillis()
         val body = buildJsonObject {
             put("model", request.model)
             put("messages", buildJsonArray {
@@ -99,7 +113,9 @@ class OpenAiCompatClient(
         }
         val call = http.newCall(request("/chat/completions").post(body.toString().toRequestBody(jsonType)).build())
         call.timeout().timeout(chatTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
-        parseChat(call.awaitBytes().toString(Charsets.UTF_8))
+        parseChat(call.awaitBytes().toString(Charsets.UTF_8)).also {
+            log("Model replied in ${(System.currentTimeMillis() - t0) / 1000.0}s: " + it.content.replace(Regex("\\s+"), " ").take(200))
+        }
     }
 
     internal fun parseChat(raw: String): ChatResult {

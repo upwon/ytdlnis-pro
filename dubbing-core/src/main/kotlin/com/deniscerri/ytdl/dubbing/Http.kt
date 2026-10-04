@@ -52,6 +52,7 @@ internal suspend fun Call.awaitBytes(): ByteArray {
 internal suspend fun <T> retrying(
     maxAttempts: Int,
     baseDelayMs: Long,
+    onError: ((attempt: Int, error: Exception, willRetry: Boolean) -> Unit)? = null,
     block: suspend (attempt: Int) -> T,
 ): T {
     var attempt = 0
@@ -63,6 +64,7 @@ internal suspend fun <T> retrying(
         } catch (e: Exception) {
             attempt++
             val retryable = (e is ApiException && e.retryable) || e is IOException
+            onError?.invoke(attempt, e, retryable && attempt < maxAttempts)
             if (!retryable || attempt >= maxAttempts) throw e
             val backoff = baseDelayMs * (1L shl (attempt - 1))
             delay(minOf(30_000L, maxOf(backoff, (e as? ApiException)?.retryAfterMs ?: 0L)))

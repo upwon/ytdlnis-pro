@@ -31,9 +31,9 @@ class DubbingFactory(private val context: Context) {
         if (baseUrl.contains("openrouter.ai")) mapOf("HTTP-Referer" to "https://github.com/deniscerri/ytdlnis", "X-Title" to "YTDLnis")
         else emptyMap()
 
-    fun llmClient(): OpenAiCompatClient {
+    fun llmClient(log: (String) -> Unit = {}): OpenAiCompatClient {
         val base = str(DubbingPrefs.LLM_BASE_URL)
-        return OpenAiCompatClient(base, str(DubbingPrefs.LLM_API_KEY), extraHeaders = headersFor(base))
+        return OpenAiCompatClient(base, str(DubbingPrefs.LLM_API_KEY), extraHeaders = headersFor(base), log = log)
     }
 
     private fun asrProvider(): OpenAiCompatAsr? {
@@ -138,7 +138,7 @@ class DubbingFactory(private val context: Context) {
             ),
         )
         val translator = LlmTranslator(
-            client = llmClient(),
+            client = llmClient(log),
             model = str(DubbingPrefs.LLM_MODEL),
             config = TranslatorConfig(
                 glossary = str(DubbingPrefs.GLOSSARY),
@@ -156,7 +156,7 @@ class DubbingFactory(private val context: Context) {
             onProgress = onProgress,
             onPreview = onPreview,
             labeler = if (prefs.getBoolean(DubbingPrefs.ROLES_LLM, false)) {
-                com.deniscerri.ytdl.dubbing.SpeakerLabeler(llmClient(), str(DubbingPrefs.LLM_MODEL), log = log)
+                com.deniscerri.ytdl.dubbing.SpeakerLabeler(llmClient(log), str(DubbingPrefs.LLM_MODEL), log = log)
             } else null,
         )
         return Setup(pipeline, system)

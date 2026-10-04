@@ -162,6 +162,9 @@ class LlmTranslator(
             val zh = byId[all[i].id]?.trim().orEmpty()
             if (zh.isNotEmpty()) out[i] = zh
         }
+        if (out.size < indices.size) {
+            log("The reply covered ${out.size} of ${indices.size} lines" + if (byId.isEmpty()) " (could not read it as JSON)" else "")
+        }
         return out
     }
 

@@ -38,6 +38,17 @@ class OpenAiClientTest {
     }
 
     @Test
+    fun requestOutcomesAreLoggedForTheDetailsView() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(503).body("""{"error":"overloaded"}""").build())
+        server.enqueue(ok("""{"choices":[{"message":{"content":"你好 世界"}}]}"""))
+        val lines = mutableListOf<String>()
+        val c = OpenAiCompatClient(server.url("/v1").toString(), "k", retryBaseDelayMs = 1, log = { lines += it })
+        c.chat(ChatRequest("m", listOf(ChatMessage("user", "hi"))))
+        assertTrue(lines.any { it.contains("attempt 1/4") && it.contains("HTTP 503") && it.contains("overloaded") && it.contains("trying again") }, lines.toString())
+        assertTrue(lines.any { it.startsWith("Model replied in") && it.contains("你好 世界") }, lines.toString())
+    }
+
+    @Test
     fun dailyQuotaIsNotRetried() = runBlocking {
         server.enqueue(MockResponse.Builder().code(429).body("""{"error":{"message":"Rate limit exceeded: free-models-per-day"}}""").build())
         val e = assertFailsWith<ApiException> { client().chat(ChatRequest("m", listOf(ChatMessage("user", "hi")))) }
