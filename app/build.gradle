@@ -16,6 +16,9 @@ def versionBuild = 0 // bump for dogfood builds, public betas, etc.
 //WHEN RELEASING BETA KEEP THE SAME VERSION AS LATEST STABLE, SO USERS CAN DOWNGRADE
 def isBeta = false
 
+// CI passes -Pci.build=<run number>: every build then gets its own, ever-increasing versionCode and a visible
+// versionName ("1.9.0-pro.57"), so it is obvious which APK is the newest and Android accepts it as an update.
+def ciBuild = (project.findProperty("ci.build") ?: "0").toString().toInteger()
 def versionExt = ""
 if (versionBuild > 0) {
     versionExt += ".${versionBuild}"
@@ -66,8 +69,8 @@ android {
         applicationId "top.lifeee.ytdlnis"
         minSdk 24
         targetSdk 36
-        versionCode versionMajor * 1000000 + versionMinor * 10000 + versionPatch * 100 + versionBuild
-        versionName "${versionMajor}.${versionMinor}.${versionPatch}${versionExt}"
+        versionCode versionMajor * 1000000 + versionMinor * 10000 + versionPatch * 100 + versionBuild + ciBuild
+        versionName "${versionMajor}.${versionMinor}.${versionPatch}${versionExt}" + (ciBuild > 0 ? "-pro.${ciBuild}" : "")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         archivesBaseName = "YTDLnis-$versionName"
         vectorDrawables {

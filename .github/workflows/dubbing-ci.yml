@@ -140,7 +140,7 @@ jobs:
         run: |
           touch local.properties
           chmod +x gradlew
-          ./gradlew :app:assembleGithubDebug --console=plain --stacktrace
+          ./gradlew :app:assembleGithubDebug --console=plain --stacktrace -Pci.build=${{ github.run_number }}
 
   e2e:
     name: Android emulator E2E
@@ -202,7 +202,7 @@ jobs:
         run: |
           touch local.properties
           chmod +x gradlew
-          ./gradlew :app:assembleGithubDebug --console=plain -Pci.keystore="$KS_FILE" -Pci.keystore.password="$KS_PASSWORD"
+          ./gradlew :app:assembleGithubDebug --console=plain -Pci.build=${{ github.run_number }} -Pci.keystore="$KS_FILE" -Pci.keystore.password="$KS_PASSWORD"
 
       - name: Save signing key
         if: always() && steps.signing-key.outputs.cache-hit != 'true' && !contains(env.KS_FILE, 'secret.jks')
@@ -294,5 +294,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --prerelease \
-            --title "YTDLnis + AI 中文配音（测试版）" \
-            --notes "由 CI 自动构建。适用于绝大多数手机（arm64）。包名为 top.lifeee.ytdlnis，可与官方版共存。核心测试：${{ needs.core.result }}；模拟器端到端测试：${{ needs.e2e.result }}。提交：$GITHUB_SHA"
+            --title "YTDLnis Pro 构建 #${{ github.run_number }}（AI 中文配音）" \
+            --notes "构建号 #${{ github.run_number }}，版本 1.9.0-pro.${{ github.run_number }}（App 的 设置→关于 里显示的就是它，数字越大越新）。由 CI 自动构建。适用于绝大多数手机（arm64）。包名为 top.lifeee.ytdlnis，可与官方版共存。核心测试：${{ needs.core.result }}；模拟器端到端测试：${{ needs.e2e.result }}。提交：$GITHUB_SHA"
