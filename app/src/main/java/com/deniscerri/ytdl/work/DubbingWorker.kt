@@ -61,6 +61,8 @@ class DubbingWorker(
             logLines.addLast("${clock.format(java.util.Date())}  ${message.take(300)}")
             while (logLines.size > 40) logLines.removeFirst()
         }
+        // show it in the details view soon, not only when the next progress event happens to arrive
+        flushDetails()
     }
 
     private fun flushDetails(force: Boolean = false) {
