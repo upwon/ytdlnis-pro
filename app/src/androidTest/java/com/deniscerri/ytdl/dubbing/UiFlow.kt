@@ -96,12 +96,28 @@ class UiFlow(val pkg: String) {
     /** Scrolls a settings list until [text] is visible. */
     fun scrollTo(text: String, listClass: String = "androidx.recyclerview.widget.RecyclerView"): Boolean {
         if (has(text)) return true
-        return runCatching {
+        val found = runCatching {
             UiScrollable(UiSelector().className(listClass).scrollable(true)).apply {
                 setAsVerticalList()
                 maxSearchSwipes = 25
             }.scrollIntoView(UiSelector().text(text))
         }.getOrDefault(false)
+        return found || swipeUntil(text, up = true) || swipeUntil(text, up = false)
+    }
+
+    /** Plain swipes as a fallback: the settings list got long and UiScrollable sometimes gives up early. */
+    private fun swipeUntil(text: String, up: Boolean): Boolean {
+        val w = device.displayWidth
+        val h = device.displayHeight
+        repeat(40) {
+            if (has(text)) return true
+            val before = visibleTexts()
+            if (up) device.swipe(w / 2, (h * 0.75).toInt(), w / 2, (h * 0.3).toInt(), 25)
+            else device.swipe(w / 2, (h * 0.3).toInt(), w / 2, (h * 0.75).toInt(), 25)
+            Thread.sleep(350)
+            if (visibleTexts() == before) return has(text)
+        }
+        return has(text)
     }
 
     fun scrollAndTap(text: String) {
