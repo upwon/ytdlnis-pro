@@ -129,7 +129,7 @@ class DubbingSettingsUiTest {
 
         // fetch the model list from the real service and pick a free one
         ui.scrollAndTap("Fetch model list")
-        ui.check(ui.find("Choose a model", 60_000) != null, "model picker should open")
+        ui.check(ui.findContains("Choose a model", 60_000) != null, "model picker should open")
         ui.shot("model-picker")
         // narrow the list with the keyword box first (the real list has hundreds of entries)
         val search = ui.device.findObject(androidx.test.uiautomator.By.res(ui.pkg, "dubbing_model_search"))
