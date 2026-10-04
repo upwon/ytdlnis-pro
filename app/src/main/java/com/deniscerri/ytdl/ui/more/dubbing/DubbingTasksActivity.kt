@@ -231,6 +231,10 @@ class DubbingTasksActivity : BaseActivity() {
                 append(section(R.string.dubbing_detail_status, listOf(state, stage).filter { it.isNotBlank() }.joinToString(" · ")))
                 append(section(R.string.dubbing_detail_kind, if (t.kind == com.deniscerri.ytdl.util.dubbing.KIND_SUBTITLE) getString(R.string.dubbing_kind_subtitle) else getString(R.string.dubbing_detail_kind_dub)))
                 append(section(R.string.dubbing_detail_elapsed, "%d:%02d".format(secs / 60, secs % 60)))
+                if (running) {
+                    val idle = ((System.currentTimeMillis() - t.updatedAt) / 1000).coerceAtLeast(0)
+                    append(section(R.string.dubbing_detail_idle, "%d:%02d".format(idle / 60, idle % 60)))
+                }
                 append(section(R.string.dubbing_detail_file, t.sourcePath))
                 if (running) append(section(R.string.dubbing_detail_now, t.preview))
                 if (t.state == DubbingState.FAILED) append(section(R.string.dubbing_detail_error, t.message))

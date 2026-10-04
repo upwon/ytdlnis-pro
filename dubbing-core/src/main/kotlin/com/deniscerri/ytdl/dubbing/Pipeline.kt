@@ -127,6 +127,9 @@ class DubbingPipeline(
         onProgress(Progress(Stage.SOURCE, 1, 1))
 
         // 2. Translate ---------------------------------------------------------------------------
+        val pendingLines = cues.count { it.zh.isBlank() }
+        if (pendingLines > 0) onPreview("Translating $pendingLines lines — waiting for the model to answer…")
+        onProgress(Progress(Stage.TRANSLATE, cues.size - pendingLines, cues.size))
         cues = translator.translate(
             cues,
             onProgress = { d, t -> onProgress(Progress(Stage.TRANSLATE, d, t)) },

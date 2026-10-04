@@ -52,6 +52,7 @@ class DubbingWorker(
     private val logLines = ArrayDeque<String>()
     private var preview = ""
     private var lastFlushAt = 0L
+    private var lastStage: Stage? = null
     private val clock = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
 
     /** One line for the "details" view of the tasks screen (kept short; the last 40 are stored). */
@@ -108,8 +109,11 @@ class DubbingWorker(
     private fun showProgress(title: String, p: Progress) {
         val now = System.currentTimeMillis()
         val finishedStage = p.total > 0 && p.done >= p.total
-        flushDetails()
-        if (!finishedStage && now - lastNotificationAt < 800) return
+        // a new stage is always shown at once; only the many small updates inside one stage are rate limited
+        val stageChanged = p.stage != lastStage
+        lastStage = p.stage
+        flushDetails(force = stageChanged)
+        if (!finishedStage && !stageChanged && now - lastNotificationAt < 800) return
         lastNotificationAt = now
         val stage = context.getString(
             when (p.stage) {

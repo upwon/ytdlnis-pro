@@ -743,4 +743,5 @@
     <string name="dubbing_log_skipped">%1$d sentence(s) could not be voiced and were left silent</string>
     <string name="dubbing_auto_retry">%1$s — retrying automatically (attempt %2$d of %3$d)</string>
     <string name="dubbing_err_timeout">The service took too long to answer (timeout). Finished parts are saved: “Retry” continues where it stopped. A faster model or a smaller load may help.</string>
+    <string name="dubbing_detail_idle">Since the last progress</string>
 </resources>
