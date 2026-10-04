@@ -49,6 +49,27 @@ class DubbingWorker(
 
     private var lastNotificationAt = 0L
     private val taskId: String? get() = inputData.getString(KEY_TASK_ID)
+    private val logLines = ArrayDeque<String>()
+    private var preview = ""
+    private var lastFlushAt = 0L
+    private val clock = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+
+    /** One line for the "details" view of the tasks screen (kept short; the last 40 are stored). */
+    private fun note(message: String) {
+        synchronized(logLines) {
+            logLines.addLast("${clock.format(java.util.Date())}  ${message.take(300)}")
+            while (logLines.size > 40) logLines.removeFirst()
+        }
+    }
+
+    private fun flushDetails(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastFlushAt < 1000) return
+        lastFlushAt = now
+        val text = synchronized(logLines) { logLines.joinToString("\n") }
+        updateTask { it.copy(preview = preview, log = text) }
+    }
+
     private val subtitleOnly: Boolean get() = inputData.getString(KEY_MODE) == MODE_SUBTITLE
 
     private fun updateTask(change: (DubbingTask) -> DubbingTask) {
@@ -87,6 +108,7 @@ class DubbingWorker(
     private fun showProgress(title: String, p: Progress) {
         val now = System.currentTimeMillis()
         val finishedStage = p.total > 0 && p.done >= p.total
+        flushDetails()
         if (!finishedStage && now - lastNotificationAt < 800) return
         lastNotificationAt = now
         val stage = context.getString(
@@ -138,6 +160,8 @@ class DubbingWorker(
 
             val sourcePath = item.downloadPath.firstOrNull { FileUtil.exists(it) }
                 ?: throw IllegalStateException(context.getString(R.string.dubbing_no_file))
+            updateTask { it.copy(sourcePath = sourcePath) }
+            note(context.getString(R.string.dubbing_log_start, sourcePath))
 
             val workDir = File(FileUtil.getCachePath(context), "dubbing/${item.id}").apply { mkdirs() }
             val source = withContext(Dispatchers.IO) { localCopy(sourcePath, workDir) }
@@ -146,9 +170,7 @@ class DubbingWorker(
                 return translateSubtitleOnly(item, sourcePath, source, workDir, title)
             }
 
-            val subtitle = withContext(Dispatchers.IO) {
-                findSidecarSubtitle(source) ?: fetchSubtitle(item.url, workDir)
-            }
+            val subtitle = withContext(Dispatchers.IO) { findSubtitle(source, item.url, workDir) }
 
             val outExt = if (source.extension.lowercase() in AUDIO_EXTENSIONS) "m4a" else source.extension.ifEmpty { "mp4" }
             val dubbed = File(workDir, "dubbed.$outExt")
@@ -157,9 +179,10 @@ class DubbingWorker(
                 PreferenceManager.getDefaultSharedPreferences(context).getBoolean(DubbingPrefs.EXTERNAL_SUBTITLE, true)
             }
             val setup = DubbingFactory(context).create(
-                log = { android.util.Log.d(TAG, it) },
+                log = { android.util.Log.d(TAG, it); note(it) },
                 onProgress = { showProgress(title, it) },
                 externalSubtitle = externalSrt,
+                onPreview = { preview = it },
             )
             try {
                 setup.pipeline.run(source, subtitle, workDir, dubbed)
@@ -170,8 +193,10 @@ class DubbingWorker(
             val newPath = withContext(Dispatchers.IO) { place(item, sourcePath, source, dubbed, outExt, dao, externalSrt?.takeIf { it.exists() }) }
             runCatching { FileUtil.scanMedia(listOf(newPath), context) }
             workDir.deleteRecursively()
+            note(context.getString(R.string.dubbing_log_saved, newPath))
+            flushDetails(force = true)
             updateTask {
-                it.copy(state = DubbingState.DONE, outputPath = newPath, stage = "", message = context.getString(R.string.dubbing_done))
+                it.copy(state = DubbingState.DONE, outputPath = newPath, stage = "", message = context.getString(R.string.dubbing_done), preview = "")
             }
             showResult(item, true, context.getString(R.string.dubbing_done))
             return Result.success()
@@ -181,6 +206,8 @@ class DubbingWorker(
         } catch (e: Exception) {
             android.util.Log.e(TAG, "dubbing failed", e)
             val reason = friendlyReason(e)
+            note("${e.javaClass.simpleName}: ${e.message}")
+            flushDetails(force = true)
             updateTask { it.copy(state = DubbingState.FAILED, message = reason) }
             showResult(item, false, "${context.getString(R.string.dubbing_failed)}: $reason")
             return Result.failure()
@@ -198,16 +225,17 @@ class DubbingWorker(
             showResult(item, true, context.getString(R.string.dubbing_subtitle_exists))
             return Result.success()
         }
-        val subtitle = withContext(Dispatchers.IO) { findSidecarSubtitle(source) ?: fetchSubtitle(item.url, workDir) }
+        val subtitle = withContext(Dispatchers.IO) { findSubtitle(source, item.url, workDir) }
         val isContent = sourcePath.startsWith("content://")
         val outDir = if (isContent) File(workDir, "out").apply { deleteRecursively(); mkdirs() } else source.parentFile!!
         val out = File(outDir, "${source.nameWithoutExtension}.zh.srt")
         val bilingual = PreferenceManager.getDefaultSharedPreferences(context).getBoolean(DubbingPrefs.SUBTITLE_BILINGUAL, false)
 
         val setup = DubbingFactory(context).create(
-            log = { android.util.Log.d(TAG, it) },
+            log = { android.util.Log.d(TAG, it); note(it) },
             onProgress = { showProgress(title, it) },
             needTts = false,
+            onPreview = { preview = it },
         )
         try {
             setup.pipeline.translateSubtitles(source, subtitle, workDir, out, bilingual)
@@ -224,6 +252,15 @@ class DubbingWorker(
         updateTask { it.copy(state = DubbingState.DONE, outputPath = finalPath, stage = "", message = context.getString(R.string.dubbing_subtitle_done)) }
         showResult(item, true, context.getString(R.string.dubbing_subtitle_done))
         return Result.success()
+    }
+
+    /** English subtitles next to the video, else downloaded with yt-dlp, else null (speech recognition takes over). */
+    private fun findSubtitle(source: File, url: String, workDir: File): File? {
+        findSidecarSubtitle(source)?.let { note(context.getString(R.string.dubbing_log_sub_sidecar, it.name)); return it }
+        note(context.getString(R.string.dubbing_log_sub_online))
+        fetchSubtitle(url, workDir)?.let { note(context.getString(R.string.dubbing_log_sub_found)); return it }
+        note(context.getString(R.string.dubbing_log_sub_none))
+        return null
     }
 
     /** A Chinese subtitle file that already sits next to the video ("name.zh.srt", "name.zh-Hans.vtt" ...). */

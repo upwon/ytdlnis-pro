@@ -81,6 +81,15 @@
             app:title="@string/dubbing_multi_voice" />
 
         <ListPreference
+            app:icon="@drawable/ic_translate"
+            app:key="dubbing_speaker_count"
+            app:defaultValue="2"
+            app:entries="@array/dubbing_speaker_count_entries"
+            app:entryValues="@array/dubbing_speaker_count_values"
+            app:summary="@string/dubbing_speaker_count_summary"
+            app:title="@string/dubbing_speaker_count" />
+
+        <ListPreference
             app:icon="@drawable/baseline_audio_file_24"
             app:key="dubbing_voice_male"
             app:defaultValue="zh-CN-YunxiNeural"

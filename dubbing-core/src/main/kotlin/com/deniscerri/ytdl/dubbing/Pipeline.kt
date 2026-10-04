@@ -34,6 +34,10 @@ data class DubbingConfig(
     val multiVoice: Boolean = false,
     /** Voice for lines guessed as male when [multiVoice] is on; [voice] is used for female / unknown. */
     val maleVoice: String = "zh-CN-YunxiNeural",
+    /** How many speakers to tell apart by pitch (2 = man / woman). */
+    val maxSpeakers: Int = 2,
+    /** Optional per-speaker voices ("M1", "M2", "F1", "F2"...); labels missing here use [maleVoice] / [voice]. */
+    val speakerVoices: Map<String, String> = emptyMap(),
     /** When set, the Chinese subtitles are also written to this external .srt next to the dubbed video. */
     val externalSubtitle: File? = null,
     val externalSubtitleBilingual: Boolean = false,
@@ -64,6 +68,8 @@ class DubbingPipeline(
     private val asr: AsrProvider? = null,
     private val log: (String) -> Unit = {},
     private val onProgress: (Progress) -> Unit = {},
+    /** Free-text "what is happening now" (the sentence being translated / voiced) for the UI. */
+    private val onPreview: (String) -> Unit = {},
 ) {
     private val json = Json { prettyPrint = false; ignoreUnknownKeys = true }
 
@@ -110,7 +116,10 @@ class DubbingPipeline(
         cues = translator.translate(
             cues,
             onProgress = { d, t -> onProgress(Progress(Stage.TRANSLATE, d, t)) },
-            onBatch = { save(sourceHash, it) },
+            onBatch = { all ->
+                save(sourceHash, all)
+                all.lastOrNull { it.zh.isNotBlank() }?.let { onPreview("${it.src}\n→ ${it.zh}") }
+            },
         )
         save(sourceHash, cues)
         return Prepared(cues, sourceHash, save, usedAsr)
@@ -145,7 +154,7 @@ class DubbingPipeline(
 
         // 2b. Who is speaking (male / female voice), from the pitch of the original audio -----------
         if (config.multiVoice && cues.any { it.speaker.isBlank() }) {
-            cues = SpeakerClassifier(ffmpeg, log).classify(video, cues, workDir)
+            cues = SpeakerClassifier(ffmpeg, log, config.maxSpeakers).classify(video, cues, workDir)
             save(sourceHash, cues)
         }
 
@@ -201,6 +210,7 @@ class DubbingPipeline(
                 gate.withPermit {
                     val cue = input[i]
                     val text = TtsText.clean(cue.zh)
+                    if (text.isNotBlank()) onPreview(text)
                     var result = cue
                     val existing = cue.ttsFile?.let { File(workDir, it) }
                     if (existing != null && existing.exists() && existing.length() > 0) {
@@ -236,8 +246,11 @@ class DubbingPipeline(
         cues
     }
 
-    internal fun voiceFor(cue: Cue): String =
-        if (config.multiVoice && cue.speaker == "M") config.maleVoice else config.voice
+    internal fun voiceFor(cue: Cue): String {
+        if (!config.multiVoice) return config.voice
+        config.speakerVoices[cue.speaker]?.let { return it }
+        return if (cue.speaker.startsWith("M")) config.maleVoice else config.voice
+    }
 
     /** Ask the voice to speak faster up front when the translation is long for its time slot. */
     internal fun estimateRatePercent(all: List<Cue>, i: Int): Int {

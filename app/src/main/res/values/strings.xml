@@ -705,4 +705,25 @@
     <string name="dubbing_multi_voice">Different voices for men and women</string>
     <string name="dubbing_multi_voice_summary">Guesses male / female from the pitch of the original voice and uses the male voice below for low voices. Works for a man and a woman talking; it cannot tell two people of the same sex apart.</string>
     <string name="dubbing_voice_male">Male voice</string>
+    <string name="dubbing_speaker_count">Number of speakers</string>
+    <string name="dubbing_speaker_count_summary">Used with “Different voices for men and women”. People of the same sex are told apart by pitch only, so two voices that sound alike may get the same voice.</string>
+    <string name="dubbing_speakers_2">2 (one man, one woman)</string>
+    <string name="dubbing_speakers_3">3</string>
+    <string name="dubbing_speakers_4">4</string>
+    <string name="dubbing_detail">Details</string>
+    <string name="dubbing_detail_status">Status</string>
+    <string name="dubbing_detail_kind">Type</string>
+    <string name="dubbing_detail_kind_dub">AI dubbing</string>
+    <string name="dubbing_detail_elapsed">Time</string>
+    <string name="dubbing_detail_file">File</string>
+    <string name="dubbing_detail_now">Working on</string>
+    <string name="dubbing_detail_error">Error</string>
+    <string name="dubbing_detail_log">Log</string>
+    <string name="dubbing_detail_nothing">Nothing yet</string>
+    <string name="dubbing_log_start">Started: %1$s</string>
+    <string name="dubbing_log_sub_sidecar">Using the subtitle file next to the video: %1$s</string>
+    <string name="dubbing_log_sub_online">No subtitle file next to the video, trying to download English subtitles…</string>
+    <string name="dubbing_log_sub_found">English subtitles downloaded</string>
+    <string name="dubbing_log_sub_none">No English subtitles found, will use speech recognition</string>
+    <string name="dubbing_log_saved">Saved: %1$s</string>
 </resources>

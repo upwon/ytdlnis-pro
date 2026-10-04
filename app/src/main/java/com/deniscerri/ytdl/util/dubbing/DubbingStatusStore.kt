@@ -23,6 +23,10 @@ data class DubbingTask(
     val workId: String = "",
     /** "dub" or "subtitle" (translate subtitles only). */
     val kind: String = KIND_DUB,
+    /** For the detail view: file being processed, the sentence being handled right now, and the last log lines. */
+    val sourcePath: String = "",
+    val preview: String = "",
+    val log: String = "",
 )
 
 const val KIND_DUB = "dub"
@@ -76,7 +80,7 @@ object DubbingStatusStore {
         .put("id", t.id).put("historyId", t.historyId).put("title", t.title).put("state", t.state.name)
         .put("stage", t.stage).put("done", t.done).put("total", t.total).put("message", t.message)
         .put("outputPath", t.outputPath).put("createdAt", t.createdAt).put("updatedAt", t.updatedAt)
-        .put("workId", t.workId).put("kind", t.kind)
+        .put("workId", t.workId).put("kind", t.kind).put("sourcePath", t.sourcePath).put("preview", t.preview).put("log", t.log)
 
     private fun fromJson(o: JSONObject) = DubbingTask(
         id = o.getString("id"),
@@ -92,5 +96,8 @@ object DubbingStatusStore {
         updatedAt = o.optLong("updatedAt"),
         workId = o.optString("workId"),
         kind = o.optString("kind", KIND_DUB),
+        sourcePath = o.optString("sourcePath"),
+        preview = o.optString("preview"),
+        log = o.optString("log"),
     )
 }

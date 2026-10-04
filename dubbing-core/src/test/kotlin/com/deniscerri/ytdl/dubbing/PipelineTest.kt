@@ -144,7 +144,7 @@ class PipelineTest {
             Cue(1, 200, 2800, "a", "甲"), Cue(2, 3200, 5800, "b", "乙"),
         )
         val tagged = SpeakerClassifier(TestMedia.ffmpeg).classify(v, cues, File(dir, "work-pitch"))
-        assertEquals(listOf("M", "F"), tagged.map { it.speaker })
+        assertEquals(listOf("M1", "F1"), tagged.map { it.speaker })
     }
 
     @Test fun twoVoicesAreUsedWhenMultiVoiceIsOn() = runBlocking {
@@ -162,6 +162,29 @@ class PipelineTest {
         val tts = ToneTts()
         pipeline(tts).run(v, srt(200, 3200, lengthMs = 2600, name = "two3.en.srt"), File(dir, "work-two3"), File(dir, "out/two3.zh.mp4"))
         assertEquals(setOf("zh-CN-XiaoxiaoNeural"), tts.calls.map { it.voice }.toSet())
+    }
+
+    @Test fun threeSpeakersAreSplitByPitch() {
+        val f0s: List<Double?> = listOf(108.0, 112.0, 140.0, 138.0, 205.0, 210.0, 110.0, null, 142.0, 208.0, 111.0, 139.0, 207.0)
+        val labels = SpeakerClassifier.assign(f0s, maxSpeakers = 3)
+        assertEquals(listOf("M1", "M1", "M2", "M2", "F1", "F1", "M1", "M1", "M2", "F1", "M1", "M2", "F1"), labels)
+        // with the default of two speakers the two men share one voice
+        assertEquals(setOf("M1", "F1"), SpeakerClassifier.assign(f0s, maxSpeakers = 2).toSet())
+    }
+
+    @Test fun closeVoicesCountAsOnePerson() {
+        val f0s: List<Double?> = List(12) { if (it % 2 == 0) 112.0 else 118.0 } + List(6) { 215.0 }
+        assertEquals(setOf("M1", "F1"), SpeakerClassifier.assign(f0s, maxSpeakers = 4).toSet())
+    }
+
+    @Test fun perSpeakerVoicesAreUsed() = runBlocking {
+        val v = twoVoiceVideo("two4.mp4")
+        val tts = ToneTts()
+        pipeline(tts, config = DubbingConfig(multiVoice = true, voice = "f1", maleVoice = "m1", speakerVoices = mapOf("M1" to "m1-special", "F1" to "f1-special")))
+            .run(v, srt(200, 3200, lengthMs = 2600, name = "two4.en.srt"), File(dir, "work-two4"), File(dir, "out/two4.zh.mp4"))
+        val byText = tts.calls.associate { it.text to it.voice }
+        assertEquals("m1-special", byText["这是第1句话"])
+        assertEquals("f1-special", byText["这是第2句话"])
     }
 
     @Test fun thresholdAdaptsToTwoClearGroups() {

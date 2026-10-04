@@ -30,7 +30,7 @@ class DubbingTasksScreenTest {
         val ctx = Env.ctx
         DubbingStatusStore.clearFinished(ctx)
         DubbingStatusStore.add(ctx, DubbingTask(id = "t-done", title = "Task finished video", state = DubbingState.DONE, outputPath = "/sdcard/Movies/x.zh.mp4"))
-        DubbingStatusStore.add(ctx, DubbingTask(id = "t-fail", title = "Task broken video", state = DubbingState.FAILED, message = "no subtitles found", historyId = 1))
+        DubbingStatusStore.add(ctx, DubbingTask(id = "t-fail", title = "Task broken video", state = DubbingState.FAILED, message = "no subtitles found", historyId = 1, sourcePath = "/sdcard/Movies/broken.mp4", log = "12:00:01  detail-log-line-xyz"))
         try {
             ActivityScenario.launch(DubbingTasksActivity::class.java).use { scenario ->
                 ui.relaunch = { scenario.recreate() }
@@ -38,6 +38,13 @@ class DubbingTasksScreenTest {
                 assertTrue("done task visible", has("Task finished video"))
                 assertTrue("failed task visible", has("Task broken video"))
                 assertTrue("error message visible", has("no subtitles found"))
+
+                // the details dialog shows the file and the log of the job
+                device.findObject(By.res(Env.ctx.packageName, "task_detail"))?.click()
+                assertTrue("details dialog shows the log", has("detail-log-line-xyz"))
+                assertTrue("details dialog shows the file", has("/sdcard/Movies/broken.mp4"))
+                device.pressBack()
+                Thread.sleep(500)
 
                 device.findObject(By.text("Failed")).click()
                 assertTrue(has("Task broken video"))

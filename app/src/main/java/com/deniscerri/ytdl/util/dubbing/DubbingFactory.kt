@@ -13,6 +13,7 @@ import com.deniscerri.ytdl.dubbing.MuxOptions
 import com.deniscerri.ytdl.dubbing.OpenAiCompatAsr
 import com.deniscerri.ytdl.dubbing.OpenAiCompatClient
 import com.deniscerri.ytdl.dubbing.OpenAiCompatTts
+import com.deniscerri.ytdl.dubbing.Presets
 import com.deniscerri.ytdl.dubbing.Progress
 import com.deniscerri.ytdl.dubbing.TranslatorConfig
 import com.deniscerri.ytdl.dubbing.TtsProvider
@@ -74,6 +75,21 @@ class DubbingFactory(private val context: Context) {
         }
     }
 
+    /**
+     * Voices for up to four speakers: the chosen female / male voice first, then further Mandarin voices of the same
+     * sex. Extra voices only exist for Edge / Azure (they share the voice names); other engines reuse the two chosen.
+     */
+    private fun speakerVoices(female: String, male: String): Map<String, String> {
+        val map = linkedMapOf("F1" to female, "M1" to male)
+        val engine = str(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE)
+        if (engine == DubbingPrefs.ENGINE_EDGE || engine == DubbingPrefs.ENGINE_AZURE) {
+            val used = mutableSetOf(female, male)
+            Presets.maleVoiceIds.filter { it !in used }.take(3).forEachIndexed { i, v -> map["M${i + 2}"] = v; used += v }
+            Presets.femaleVoiceIds.filter { it !in used }.take(3).forEachIndexed { i, v -> map["F${i + 2}"] = v; used += v }
+        }
+        return map
+    }
+
     class Setup(val pipeline: DubbingPipeline, private val system: SystemTtsProvider?) {
         fun close() { system?.shutdown() }
     }
@@ -94,6 +110,7 @@ class DubbingFactory(private val context: Context) {
         onProgress: (Progress) -> Unit,
         externalSubtitle: java.io.File? = null,
         needTts: Boolean = true,
+        onPreview: (String) -> Unit = {},
     ): Setup {
         if (!llmConfigured()) throw DubbingException("Translation service is not configured")
         val (tts, system) = if (needTts) createTts(log) else (NoTts as TtsProvider) to null
@@ -103,6 +120,8 @@ class DubbingFactory(private val context: Context) {
             embedChineseSubtitle = prefs.getBoolean(DubbingPrefs.EMBED_SUBTITLE, false),
             multiVoice = prefs.getBoolean(DubbingPrefs.MULTI_VOICE, false),
             maleVoice = str(DubbingPrefs.VOICE_MALE, "zh-CN-YunxiNeural").ifEmpty { "zh-CN-YunxiNeural" },
+            maxSpeakers = (str(DubbingPrefs.SPEAKER_COUNT, "2").toIntOrNull() ?: 2).coerceIn(2, 4),
+            speakerVoices = speakerVoices(voice(), str(DubbingPrefs.VOICE_MALE, "zh-CN-YunxiNeural").ifEmpty { "zh-CN-YunxiNeural" }),
             externalSubtitle = externalSubtitle,
             externalSubtitleBilingual = prefs.getBoolean(DubbingPrefs.SUBTITLE_BILINGUAL, false),
             mux = MuxOptions(
@@ -123,6 +142,7 @@ class DubbingFactory(private val context: Context) {
             asr = asrProvider(),
             log = log,
             onProgress = onProgress,
+            onPreview = onPreview,
         )
         return Setup(pipeline, system)
     }

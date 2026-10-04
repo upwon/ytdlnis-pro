@@ -20,6 +20,10 @@ object Presets {
         LlmPreset("自定义", ""),
     )
 
+    /** Extra voices handed out (in this order) to further speakers of the same sex. */
+    val maleVoiceIds = listOf("zh-CN-YunxiNeural", "zh-CN-YunyangNeural", "zh-CN-YunjianNeural")
+    val femaleVoiceIds = listOf("zh-CN-XiaoxiaoNeural", "zh-CN-XiaoyiNeural", "zh-CN-XiaochenNeural", "zh-CN-XiaohanNeural")
+
     /** Common Mandarin neural voices (identical names for Edge and Azure). */
     val chineseVoices = listOf(
         "zh-CN-XiaoxiaoNeural" to "晓晓 (女，通用)",

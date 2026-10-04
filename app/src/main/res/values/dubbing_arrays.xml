@@ -12,4 +12,14 @@
         <item>openai</item>
         <item>system</item>
     </string-array>
+    <string-array name="dubbing_speaker_count_entries">
+        <item>@string/dubbing_speakers_2</item>
+        <item>@string/dubbing_speakers_3</item>
+        <item>@string/dubbing_speakers_4</item>
+    </string-array>
+    <string-array name="dubbing_speaker_count_values" translatable="false">
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+    </string-array>
 </resources>

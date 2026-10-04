@@ -706,4 +706,25 @@
     <string name="dubbing_multi_voice">男女分别用不同音色</string>
     <string name="dubbing_multi_voice_summary">根据原声的音高判断男声/女声，低音用下面的男声音色，其余用上面的音色。适合一男一女对话；分不开同性别的两个人。</string>
     <string name="dubbing_voice_male">男声音色</string>
+    <string name="dubbing_speaker_count">说话人数</string>
+    <string name="dubbing_speaker_count_summary">配合“男女分别用不同音色”使用。同性别的人只能靠音高区分，声音很像的两个人可能会用同一个音色。</string>
+    <string name="dubbing_speakers_2">2 人（一男一女）</string>
+    <string name="dubbing_speakers_3">3 人</string>
+    <string name="dubbing_speakers_4">4 人</string>
+    <string name="dubbing_detail">详情</string>
+    <string name="dubbing_detail_status">状态</string>
+    <string name="dubbing_detail_kind">类型</string>
+    <string name="dubbing_detail_kind_dub">AI 配音</string>
+    <string name="dubbing_detail_elapsed">用时</string>
+    <string name="dubbing_detail_file">文件</string>
+    <string name="dubbing_detail_now">正在处理</string>
+    <string name="dubbing_detail_error">错误</string>
+    <string name="dubbing_detail_log">日志</string>
+    <string name="dubbing_detail_nothing">暂无</string>
+    <string name="dubbing_log_start">开始处理：%1$s</string>
+    <string name="dubbing_log_sub_sidecar">使用视频旁的字幕文件：%1$s</string>
+    <string name="dubbing_log_sub_online">视频旁没有字幕文件，正在尝试下载英文字幕…</string>
+    <string name="dubbing_log_sub_found">英文字幕已下载</string>
+    <string name="dubbing_log_sub_none">没有找到英文字幕，将使用语音识别</string>
+    <string name="dubbing_log_saved">已保存：%1$s</string>
 </resources>

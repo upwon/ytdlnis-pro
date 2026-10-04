@@ -75,7 +75,12 @@ object PitchEstimator {
     }
 }
 
-class SpeakerClassifier(private val ffmpeg: FfmpegRunner, private val log: (String) -> Unit = {}) {
+class SpeakerClassifier(
+    private val ffmpeg: FfmpegRunner,
+    private val log: (String) -> Unit = {},
+    /** 2 = man / woman; 3-4 = also split several voices of the same sex by pitch. */
+    private val maxSpeakers: Int = 2,
+) {
     /** Returns [cues] with [Cue.speaker] filled in; on any problem the cues come back unchanged. */
     suspend fun classify(video: File, cues: List<Cue>, workDir: File): List<Cue> {
         if (cues.isEmpty()) return cues
@@ -88,15 +93,9 @@ class SpeakerClassifier(private val ffmpeg: FfmpegRunner, private val log: (Stri
         }
         try {
             val f0s = withContext(Dispatchers.IO) { RandomAccessFile(pcm, "r").use { f -> cues.map { cueF0(f, it) } } }
-            val threshold = genderThreshold(f0s.filterNotNull())
-            log("Pitch analysis: ${f0s.count { it != null }}/${cues.size} lines voiced, threshold ${"%.0f".format(threshold)} Hz")
-            var previous = "F"
-            return cues.mapIndexed { i, cue ->
-                val f0 = f0s[i]
-                val gender = if (f0 == null) previous else if (f0 < threshold) "M" else "F"
-                previous = gender
-                cue.copy(speaker = gender)
-            }
+            val labels = assign(f0s, maxSpeakers)
+            log("Pitch analysis: ${f0s.count { it != null }}/${cues.size} lines voiced -> ${labels.groupingBy { it }.eachCount()}")
+            return cues.mapIndexed { i, cue -> cue.copy(speaker = labels[i]) }
         } finally {
             pcm.delete()
         }
@@ -119,6 +118,42 @@ class SpeakerClassifier(private val ffmpeg: FfmpegRunner, private val log: (Stri
 
     companion object {
         const val DEFAULT_THRESHOLD_HZ = 165.0
+
+        /**
+         * Speaker label per line: "M1", "M2"... (men, lowest voice first) and "F1", "F2"... (women). Lines without a
+         * clear voice take the label of the previous line.
+         */
+        fun assign(f0s: List<Double?>, maxSpeakers: Int = 2): List<String> {
+            val voiced = f0s.filterNotNull()
+            val threshold = genderThreshold(voiced)
+            val k = maxSpeakers.coerceIn(2, 4)
+            var previous = "F1"
+            if (k == 2 || voiced.size < k * 3) {
+                return f0s.map { f0 -> (if (f0 == null) previous else if (f0 < threshold) "M1" else "F1").also { previous = it } }
+            }
+            val logs = voiced.map { ln(it) }.sorted()
+            var centers = List(k) { logs[((it + 0.5) / k * logs.size).toInt().coerceAtMost(logs.size - 1)] }
+            repeat(30) {
+                val groups = logs.groupBy { v -> centers.indices.minBy { abs(centers[it] - v) } }
+                centers = centers.mapIndexed { i, c -> groups[i]?.average() ?: c }
+            }
+            // voices closer than ~12% are one speaker
+            val merged = ArrayList<Double>()
+            for (c in centers.sorted()) {
+                if (merged.isNotEmpty() && exp(c - merged.last()) < 1.12) merged[merged.size - 1] = (merged.last() + c) / 2
+                else merged += c
+            }
+            val labelOfCenter = HashMap<Int, String>()
+            var men = 0
+            var women = 0
+            merged.forEachIndexed { i, c ->
+                labelOfCenter[i] = if (exp(c) < threshold) "M${++men}" else "F${++women}"
+            }
+            return f0s.map { f0 ->
+                (if (f0 == null) previous else labelOfCenter.getValue(merged.indices.minBy { abs(merged[it] - ln(f0)) }))
+                    .also { previous = it }
+            }
+        }
 
         /**
          * Fixed boundary between typical male (85-155 Hz) and female (165-255 Hz) speech, refined with a 2-means split

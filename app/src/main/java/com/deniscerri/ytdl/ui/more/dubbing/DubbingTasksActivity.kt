@@ -64,6 +64,7 @@ class DubbingTasksActivity : BaseActivity() {
                 else DubbingScheduler.enqueueForHistory(this, listOf(task.historyId))
                 lifecycleScope.launch { delay(400); refresh() }
             },
+            onDetail = { task -> showDetail(task.id) },
             onRemove = { task ->
                 DubbingStatusStore.remove(this, task.id)
                 refresh()
@@ -105,6 +106,56 @@ class DubbingTasksActivity : BaseActivity() {
         }
     }
 
+    /** Live details of one job: status, time, the file, the sentence being handled and the recent log. */
+    private fun showDetail(taskId: String) {
+        val text = TextView(this).apply {
+            setTextIsSelectable(true)
+            textSize = 13f
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+        }
+        val scroll = android.widget.ScrollView(this).apply { addView(text) }
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dubbing_detail)
+            .setView(scroll)
+            .setPositiveButton(R.string.ok, null)
+            .create()
+
+        fun render() {
+            val t = DubbingStatusStore.all(this).firstOrNull { it.id == taskId } ?: return
+            val state = getString(
+                when (t.state) {
+                    DubbingState.QUEUED -> R.string.dubbing_state_queued
+                    DubbingState.RUNNING -> R.string.dubbing_state_running
+                    DubbingState.DONE -> R.string.dubbing_state_done
+                    DubbingState.FAILED -> R.string.dubbing_state_failed
+                }
+            )
+            val running = t.state == DubbingState.RUNNING || t.state == DubbingState.QUEUED
+            val end = if (running) System.currentTimeMillis() else t.updatedAt
+            val secs = ((end - t.createdAt) / 1000).coerceAtLeast(0)
+            val stage = listOf(t.stage, if (t.total > 1) "${t.done}/${t.total}" else "").filter { it.isNotBlank() }.joinToString(" ")
+            val none = getString(R.string.dubbing_detail_nothing)
+            fun section(label: Int, value: String) = "${getString(label)}\n${value.ifBlank { none }}\n\n"
+            text.text = buildString {
+                append(t.title.ifBlank { getString(R.string.dubbing_title) }).append("\n\n")
+                append(section(R.string.dubbing_detail_status, listOf(state, stage).filter { it.isNotBlank() }.joinToString(" · ")))
+                append(section(R.string.dubbing_detail_kind, if (t.kind == com.deniscerri.ytdl.util.dubbing.KIND_SUBTITLE) getString(R.string.dubbing_kind_subtitle) else getString(R.string.dubbing_detail_kind_dub)))
+                append(section(R.string.dubbing_detail_elapsed, "%d:%02d".format(secs / 60, secs % 60)))
+                append(section(R.string.dubbing_detail_file, t.sourcePath))
+                if (running) append(section(R.string.dubbing_detail_now, t.preview))
+                if (t.state == DubbingState.FAILED) append(section(R.string.dubbing_detail_error, t.message))
+                if (t.state == DubbingState.DONE && t.outputPath.isNotBlank()) append(getString(R.string.dubbing_saved_to, t.outputPath)).append("\n\n")
+                append(section(R.string.dubbing_detail_log, t.log))
+            }
+        }
+        render()
+        dialog.show()
+        // the worker writes progress into the store about once a second; keep the dialog in step while it is open
+        val job = lifecycleScope.launch { while (true) { delay(1000); render() } }
+        dialog.setOnDismissListener { job.cancel() }
+    }
+
     /** A job the worker never finished (app killed, work cancelled) must not look "in progress" forever. */
     private fun reconcile(): List<DubbingTask> {
         val tasks = DubbingStatusStore.all(this)
@@ -134,6 +185,7 @@ class DubbingTasksActivity : BaseActivity() {
         val onOpen: (DubbingTask) -> Unit,
         val onRetry: (DubbingTask) -> Unit,
         val onRemove: (DubbingTask) -> Unit,
+        val onDetail: (DubbingTask) -> Unit,
     ) : ListAdapter<DubbingTask, TaskAdapter.Holder>(object : DiffUtil.ItemCallback<DubbingTask>() {
         override fun areItemsTheSame(a: DubbingTask, b: DubbingTask) = a.id == b.id
         override fun areContentsTheSame(a: DubbingTask, b: DubbingTask) = a == b
@@ -202,6 +254,8 @@ class DubbingTasksActivity : BaseActivity() {
                 isVisible = t.state == DubbingState.FAILED && t.historyId >= 0
                 setOnClickListener { onRetry(t) }
             }
+            c.setOnClickListener { onDetail(t) }
+            c.findViewById<MaterialButton>(R.id.task_detail).setOnClickListener { onDetail(t) }
             c.findViewById<MaterialButton>(R.id.task_remove).apply {
                 isVisible = t.state != DubbingState.RUNNING
                 setOnClickListener { onRemove(t) }
