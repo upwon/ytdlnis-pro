@@ -71,7 +71,7 @@ class LlmTranslator(
         pending.chunked(max(1, config.batchSize)).map { batch ->
             async {
                 gate.withPermit {
-                    val translated = translateBatch(cues, batch)
+                    val translated = translateBatchResilient(cues, batch)
                     lock.withLock {
                         translated.forEach { (idx, zh) -> result[idx] = result[idx].copy(zh = zh) }
                         done += translated.size
@@ -82,6 +82,22 @@ class LlmTranslator(
             }
         }.awaitAll()
         result
+    }
+
+    /**
+     * A slow or flaky model often times out on a big batch (reasoning models especially). Halve the batch and try again
+     * instead of failing the whole video; permanent errors (bad key, used-up quota) are rethrown at once.
+     */
+    private suspend fun translateBatchResilient(all: List<Cue>, batch: List<Int>): Map<Int, String> = try {
+        translateBatch(all, batch)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        val transient = e is java.io.IOException || (e is ApiException && e.retryable) || e is TranslationException
+        if (batch.size > 1 && transient) {
+            val mid = batch.size / 2
+            translateBatchResilient(all, batch.subList(0, mid)) + translateBatchResilient(all, batch.subList(mid, batch.size))
+        } else throw e
     }
 
     /** Returns cue-index -> translation for every index in [batch]; throws if a cue can't be translated. */

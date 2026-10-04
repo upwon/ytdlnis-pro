@@ -9,6 +9,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -51,6 +52,8 @@ data class DubbingReport(
     val align: AlignReport,
     val output: File,
     val usedAsr: Boolean,
+    /** Sentences whose speech could not be generated and were left silent. */
+    val skipped: Int = 0,
 )
 
 @Serializable
@@ -188,7 +191,7 @@ class DubbingPipeline(
         Files.move(part.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)
         onProgress(Progress(Stage.MUX, 1, 1))
 
-        return DubbingReport(cues.size, alignReport.clips, alignReport, output, usedAsr)
+        return DubbingReport(cues.size, alignReport.clips, alignReport, output, usedAsr, skippedSentences)
     }
 
     private suspend fun synthesize(
@@ -203,6 +206,7 @@ class DubbingPipeline(
         val gate = Semaphore(max(1, config.ttsConcurrency))
         val total = cues.size
         var done = 0
+        val failures = java.util.Collections.synchronizedList(ArrayList<Pair<Int, String>>())
         onProgress(Progress(Stage.SYNTHESIZE, 0, total))
 
         cues.indices.map { i ->
@@ -211,7 +215,7 @@ class DubbingPipeline(
                     val cue = input[i]
                     val text = TtsText.clean(cue.zh)
                     if (text.isNotBlank()) onPreview(text)
-                    var result = cue
+                    var result: Cue? = cue
                     val existing = cue.ttsFile?.let { File(workDir, it) }
                     if (existing != null && existing.exists() && existing.length() > 0) {
                         // already synthesized in a previous run
@@ -228,13 +232,16 @@ class DubbingPipeline(
                             file.delete()
                             throw e
                         } catch (e: Exception) {
+                            // one stubborn sentence must not lose the whole video: leave it silent and carry on
                             file.delete()
-                            throw DubbingException("Speech synthesis failed for cue ${cue.id}: ${e.message}", e)
+                            log("Speech synthesis failed for cue ${cue.id} (skipped): ${e.message}")
+                            lock.withLock { failures.add(cue.id to (e.message ?: e.javaClass.simpleName)) }
+                            result = null
                         }
-                        result = cue.copy(ttsFile = "tts/${file.name}")
+                        if (result == null) result = cue.copy(ttsFile = null) else result = cue.copy(ttsFile = "tts/${file.name}")
                     }
                     lock.withLock {
-                        cues[i] = result
+                        cues[i] = result!!
                         done++
                         onProgress(Progress(Stage.SYNTHESIZE, done, total))
                         if (done % 10 == 0) save(sourceHash, cues.toList())
@@ -243,8 +250,18 @@ class DubbingPipeline(
             }
         }.awaitAll()
         save(sourceHash, cues.toList())
+        val speakable = cues.count { TtsText.speakable(TtsText.clean(it.zh)) }
+        // a few skipped sentences are acceptable; a mostly silent video is a failed dub (retrying resumes from the checkpoint)
+        if (failures.isNotEmpty() && (failures.size >= speakable || failures.size > max(3, speakable * 15 / 100))) {
+            throw DubbingException(
+                "Speech synthesis failed for ${failures.size} of $speakable sentences, e.g. cue ${failures.first().first}: ${failures.first().second}"
+            )
+        }
+        skippedSentences = failures.size
         cues
     }
+
+    private var skippedSentences = 0
 
     internal fun voiceFor(cue: Cue): String {
         if (!config.multiVoice) return config.voice
@@ -272,24 +289,37 @@ class DubbingPipeline(
             "This video has no subtitles and no speech-recognition service is configured"
         )
         if (info.audioStreams.isEmpty()) throw DubbingException("The video has no audio to recognise")
-        val dir = File(workDir, "asr").apply { deleteRecursively(); mkdirs() }
+        val dir = File(workDir, "asr").apply { mkdirs() }
         val seconds = config.asrSegmentSeconds
-        val r = ffmpeg.run(
-            listOf(
-                "-i", video.absolutePath, "-vn", "-map", "0:a:0", "-ac", "1", "-ar", "16000",
-                "-c:a", "libmp3lame", "-b:a", "32k",
-                "-f", "segment", "-segment_time", seconds.toString(), "-reset_timestamps", "1",
-                File(dir, "seg_%03d.mp3").absolutePath,
+        val marker = File(dir, "segmented.ok")
+        if (!marker.exists()) {
+            dir.listFiles()?.forEach { it.delete() }
+            val r = ffmpeg.run(
+                listOf(
+                    "-i", video.absolutePath, "-vn", "-map", "0:a:0", "-ac", "1", "-ar", "16000",
+                    "-c:a", "libmp3lame", "-b:a", "32k",
+                    "-f", "segment", "-segment_time", seconds.toString(), "-reset_timestamps", "1",
+                    File(dir, "seg_%03d.mp3").absolutePath,
+                )
             )
-        )
-        val segments = dir.listFiles { f -> f.name.startsWith("seg_") }?.sortedBy { it.name }.orEmpty()
-        if (!r.ok || segments.isEmpty()) throw DubbingException("Could not extract audio:\n${r.log.takeLast(500)}")
+            if (!r.ok || dir.listFiles { f -> f.name.startsWith("seg_") }.isNullOrEmpty()) {
+                throw DubbingException("Could not extract audio:\n${r.log.takeLast(500)}")
+            }
+            marker.writeText("ok")
+        }
+        val segments = dir.listFiles { f -> f.name.startsWith("seg_") && f.extension == "mp3" }?.sortedBy { it.name }.orEmpty()
 
         val all = ArrayList<Cue>()
         segments.forEachIndexed { idx, file ->
             val offset = idx * seconds * 1000L
             val remaining = max(1L, info.durationMs - offset)
-            val part = provider.transcribe(file, config.sourceLanguageCode, min(seconds * 1000L, remaining))
+            // every recognised segment is cached: a failure at hour two must not redo hour one
+            val cache = File(dir, "${file.nameWithoutExtension}.json")
+            val part: List<Cue> = cache.takeIf { it.exists() }?.let { c ->
+                runCatching { json.decodeFromString<List<Cue>>(c.readText()) }.getOrNull()
+            } ?: provider.transcribe(file, config.sourceLanguageCode, min(seconds * 1000L, remaining)).also {
+                cache.writeText(json.encodeToString(it))
+            }
             part.forEach { all += it.copy(startMs = it.startMs + offset, endMs = it.endMs + offset) }
             onProgress(Progress(Stage.SOURCE, idx + 1, segments.size))
         }

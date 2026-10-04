@@ -257,9 +257,9 @@ class PipelineTest {
         val s = srt(1000, 6000, 11000)
         val work = File(dir, "work")
         val out = File(dir, "o.mp4")
-        val failing = ToneTts(failOn = { it.contains("3") })
+        val failing = ToneTts(failOn = { true })
         val e = assertFailsWith<DubbingException> { pipeline(failing).run(v, s, work, out) }
-        assertTrue(e.message!!.contains("cue 3"), e.message)
+        assertTrue(e.message!!.contains("Speech synthesis failed"), e.message)
         assertFalse(out.exists())
         assertFalse(File(dir, "o.part.mp4").exists())
         val translatedCalls = chatCalls.get()
@@ -269,6 +269,59 @@ class PipelineTest {
         assertEquals(translatedCalls, chatCalls.get(), "translations were checkpointed")
         assertTrue(good.calls.size in 1..3)
         assertTrue(out.exists())
+    }
+
+    @Test fun aFewFailedSentencesAreSkippedInsteadOfLosingTheVideo() = runBlocking {
+        val v = video(40, "skip.mp4")
+        val s = srt(1000, 6000, 11000, 16000, 21000, 26000, name = "skip.en.srt")
+        val out = File(dir, "skip.zh.mp4")
+        val report = pipeline(ToneTts(failOn = { it.contains("3") })).run(v, s, File(dir, "work-skip"), out)
+        assertTrue(out.exists())
+        assertEquals(1, report.skipped)
+        assertEquals(5, report.spoken)
+    }
+
+    @Test fun aTimingOutBatchIsSplitInsteadOfFailing() = runBlocking {
+        val calls = AtomicInteger()
+        val chat = FakeChat { r ->
+            calls.incrementAndGet()
+            if (FakeChat.userItems(r).size > 2) throw java.io.IOException("timeout")
+            FakeChat.echoZh(r)
+        }
+        val cues = (1..7).map { Cue(it, it * 3000L, it * 3000L + 2500, "Sentence number $it here.") }
+        val out = LlmTranslator(chat, "m", TranslatorConfig(batchSize = 7, concurrency = 1)).translate(cues)
+        assertEquals(7, out.count { it.zh.isNotBlank() })
+        assertTrue(calls.get() > 3, "the batch was split, calls=${calls.get()}")
+    }
+
+    @Test fun recognisedSegmentsSurviveAFailureLaterOn() = runBlocking {
+        val seen = java.util.concurrent.CopyOnWriteArrayList<String>()
+        var failSecond = true
+        val asr = object : AsrProvider {
+            override suspend fun transcribe(audio: File, language: String?, fallbackDurationMs: Long): List<Cue> {
+                seen += audio.name
+                if (failSecond && audio.name == "seg_001.mp3") throw java.io.IOException("timeout")
+                return listOf(Cue(1, 1000, 3000, "Hello from ${audio.name}."))
+            }
+        }
+        fun make() = DubbingPipeline(
+            ffmpeg = TestMedia.ffmpeg,
+            translator = LlmTranslator(FakeChat { FakeChat.echoZh(it) }, "m"),
+            tts = ToneTts(),
+            config = DubbingConfig(asrSegmentSeconds = 10),
+            asr = asr,
+        )
+        val v = video(30, "asr-resume.mp4")
+        val work = File(dir, "work-asr-resume")
+        assertFailsWith<java.io.IOException> { make().run(v, null, work, File(dir, "asr1.mp4")) }
+        assertEquals(listOf("seg_000.mp3", "seg_001.mp3"), seen.toList())
+
+        failSecond = false
+        seen.clear()
+        val report = make().run(v, null, work, File(dir, "asr1.mp4"))
+        assertFalse("seg_000.mp3" in seen, "segment 0 came from the cache: $seen")
+        assertEquals("seg_001.mp3", seen.first())
+        assertEquals(seen.size + 1, report.cues, "one line per segment, cached one included")
     }
 
     @Test fun lowSpeechRateLimitsAndLongTranslationsRequestFasterSpeechThenTempo() = runBlocking {
