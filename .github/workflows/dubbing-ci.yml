@@ -172,27 +172,40 @@ jobs:
           path: ~/ci-keystore
           key: dubbing-ci-keystore-v2
 
-      - name: Create signing key if missing
+      # If the repository has the secrets ANDROID_KEYSTORE_B64 (+ ANDROID_KEYSTORE_PASSWORD), that key is used and is
+      # permanent. Without them a throw-away key kept in the Actions cache is used (lost after 7 idle days).
+      - name: Prepare signing key
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          if [ ! -f "$HOME/ci-keystore/ci.jks" ]; then
-            mkdir -p "$HOME/ci-keystore"
-            keytool -genkeypair -keystore "$HOME/ci-keystore/ci.jks" -storetype PKCS12 \
-              -storepass ytdlnis-ci -keypass ytdlnis-ci -alias ytdlnis -keyalg RSA -keysize 2048 \
-              -validity 36500 -dname "CN=YTDLnis Pro, O=lifeee.top, C=CN"
-            echo "created a new signing key"
+          mkdir -p "$HOME/ci-keystore"
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$HOME/ci-keystore/secret.jks"
+            echo "KS_FILE=$HOME/ci-keystore/secret.jks" >> "$GITHUB_ENV"
+            echo "KS_PASSWORD=${KS_PASS:-ytdlnis-ci}" >> "$GITHUB_ENV"
+            echo "using the signing key from the repository secret"
           else
-            echo "reusing the cached signing key"
+            if [ ! -f "$HOME/ci-keystore/ci.jks" ]; then
+              keytool -genkeypair -keystore "$HOME/ci-keystore/ci.jks" -storetype PKCS12 \
+                -storepass ytdlnis-ci -keypass ytdlnis-ci -alias ytdlnis -keyalg RSA -keysize 2048 \
+                -validity 36500 -dname "CN=YTDLnis Pro, O=lifeee.top, C=CN"
+              echo "created a new throw-away signing key"
+            else
+              echo "reusing the cached signing key"
+            fi
+            echo "KS_FILE=$HOME/ci-keystore/ci.jks" >> "$GITHUB_ENV"
+            echo "KS_PASSWORD=ytdlnis-ci" >> "$GITHUB_ENV"
           fi
-          keytool -list -keystore "$HOME/ci-keystore/ci.jks" -storepass ytdlnis-ci | tail -3
 
       - name: Build debug APK (installable artifact)
         run: |
           touch local.properties
           chmod +x gradlew
-          ./gradlew :app:assembleGithubDebug --console=plain -Pci.keystore="$HOME/ci-keystore/ci.jks"
+          ./gradlew :app:assembleGithubDebug --console=plain -Pci.keystore="$KS_FILE" -Pci.keystore.password="$KS_PASSWORD"
 
       - name: Save signing key
-        if: always() && steps.signing-key.outputs.cache-hit != 'true'
+        if: always() && steps.signing-key.outputs.cache-hit != 'true' && !contains(env.KS_FILE, 'secret.jks')
         uses: actions/cache/save@v4
         with:
           path: ~/ci-keystore

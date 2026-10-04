@@ -55,9 +55,10 @@ android {
             enableV2Signing = true
             if (project.hasProperty("ci.keystore")) {
                 storeFile = file(project.property("ci.keystore"))
-                storePassword = "ytdlnis-ci"
+                def ciPassword = project.findProperty("ci.keystore.password") ?: "ytdlnis-ci"
+                storePassword = ciPassword
                 keyAlias = "ytdlnis"
-                keyPassword = "ytdlnis-ci"
+                keyPassword = ciPassword
             }
         }
     }
