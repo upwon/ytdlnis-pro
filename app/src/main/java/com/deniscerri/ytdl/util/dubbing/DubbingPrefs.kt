@@ -15,6 +15,8 @@ object DubbingPrefs {
     const val TTS_ENGINE = "dubbing_tts_engine"
     const val VOICE = "dubbing_voice"
     const val VOICE_CUSTOM = "dubbing_voice_custom"
+    const val MULTI_VOICE = "dubbing_multi_voice"
+    const val VOICE_MALE = "dubbing_voice_male"
     const val SPEECH_RATE = "dubbing_speech_rate"
     const val AZURE_REGION = "dubbing_azure_region"
     const val AZURE_KEY = "dubbing_azure_key"

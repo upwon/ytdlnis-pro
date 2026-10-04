@@ -101,6 +101,8 @@ class DubbingFactory(private val context: Context) {
             voice = voice(),
             baseRatePercent = prefs.getInt(DubbingPrefs.SPEECH_RATE, 0),
             embedChineseSubtitle = prefs.getBoolean(DubbingPrefs.EMBED_SUBTITLE, false),
+            multiVoice = prefs.getBoolean(DubbingPrefs.MULTI_VOICE, false),
+            maleVoice = str(DubbingPrefs.VOICE_MALE, "zh-CN-YunxiNeural").ifEmpty { "zh-CN-YunxiNeural" },
             externalSubtitle = externalSubtitle,
             externalSubtitleBilingual = prefs.getBoolean(DubbingPrefs.SUBTITLE_BILINGUAL, false),
             mux = MuxOptions(

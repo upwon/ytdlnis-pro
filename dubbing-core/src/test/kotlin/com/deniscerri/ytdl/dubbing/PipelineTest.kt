@@ -127,6 +127,49 @@ class PipelineTest {
         assertTrue(ext.readText().contains("这是第2句话"))
     }
 
+    /** 3 s of a low "voice" (130 Hz) followed by 3 s of a high one (230 Hz), both with harmonics like a real voice. */
+    private fun twoVoiceVideo(name: String): File {
+        val f = File(dir, name)
+        TestMedia.ff(
+            "-f", "lavfi", "-i", "testsrc=size=160x120:rate=10:duration=6",
+            "-f", "lavfi", "-i", "aevalsrc='if(lt(t,3), sin(2*PI*130*t)+0.5*sin(2*PI*260*t)+0.3*sin(2*PI*390*t), sin(2*PI*230*t)+0.5*sin(2*PI*460*t)+0.3*sin(2*PI*690*t))*0.3':d=6:s=44100",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", f.absolutePath,
+        )
+        return f
+    }
+
+    @Test fun pitchSeparatesALowVoiceFromAHighOne() = runBlocking {
+        val v = twoVoiceVideo("two.mp4")
+        val cues = listOf(
+            Cue(1, 200, 2800, "a", "甲"), Cue(2, 3200, 5800, "b", "乙"),
+        )
+        val tagged = SpeakerClassifier(TestMedia.ffmpeg).classify(v, cues, File(dir, "work-pitch"))
+        assertEquals(listOf("M", "F"), tagged.map { it.speaker })
+    }
+
+    @Test fun twoVoicesAreUsedWhenMultiVoiceIsOn() = runBlocking {
+        val v = twoVoiceVideo("two2.mp4")
+        val tts = ToneTts()
+        pipeline(tts, config = DubbingConfig(multiVoice = true, voice = "female-voice", maleVoice = "male-voice"))
+            .run(v, srt(200, 3200, lengthMs = 2600, name = "two.en.srt"), File(dir, "work-two"), File(dir, "out/two.zh.mp4"))
+        val byText = tts.calls.associate { it.text to it.voice }
+        assertEquals("male-voice", byText["这是第1句话"])
+        assertEquals("female-voice", byText["这是第2句话"])
+    }
+
+    @Test fun singleVoiceIsTheDefault() = runBlocking {
+        val v = twoVoiceVideo("two3.mp4")
+        val tts = ToneTts()
+        pipeline(tts).run(v, srt(200, 3200, lengthMs = 2600, name = "two3.en.srt"), File(dir, "work-two3"), File(dir, "out/two3.zh.mp4"))
+        assertEquals(setOf("zh-CN-XiaoxiaoNeural"), tts.calls.map { it.voice }.toSet())
+    }
+
+    @Test fun thresholdAdaptsToTwoClearGroups() {
+        val t = SpeakerClassifier.genderThreshold(listOf(105.0, 110.0, 112.0, 108.0, 190.0, 195.0, 200.0, 188.0))
+        assertTrue(t in 130.0..175.0, "threshold $t should sit between the two groups")
+        assertEquals(SpeakerClassifier.DEFAULT_THRESHOLD_HZ, SpeakerClassifier.genderThreshold(listOf(100.0, 105.0)))
+    }
+
     @Test fun subtitleToDubbedVideoEndToEnd() = runBlocking {
         val v = video(30)
         val starts = longArrayOf(1000, 6000, 11000, 16000, 21000, 26000)

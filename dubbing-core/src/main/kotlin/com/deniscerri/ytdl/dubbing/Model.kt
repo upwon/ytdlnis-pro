@@ -12,6 +12,8 @@ data class Cue(
     val zh: String = "",
     /** Synthesized clip, relative to the work dir. */
     val ttsFile: String? = null,
+    /** "M" or "F" when voices are assigned per speaker (guessed from the pitch of the original audio); blank = unknown. */
+    val speaker: String = "",
 ) {
     val durationMs: Long get() = endMs - startMs
 }

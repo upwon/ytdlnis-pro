@@ -72,6 +72,21 @@
             app:title="@string/dubbing_voice"
             app:useSimpleSummaryProvider="true" />
 
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_translate"
+            app:key="dubbing_multi_voice"
+            app:summary="@string/dubbing_multi_voice_summary"
+            app:title="@string/dubbing_multi_voice" />
+
+        <ListPreference
+            app:icon="@drawable/baseline_audio_file_24"
+            app:key="dubbing_voice_male"
+            app:defaultValue="zh-CN-YunxiNeural"
+            app:title="@string/dubbing_voice_male"
+            app:useSimpleSummaryProvider="true" />
+
         <EditTextPreference
             app:icon="@drawable/ic_edit"
             app:key="dubbing_voice_custom"

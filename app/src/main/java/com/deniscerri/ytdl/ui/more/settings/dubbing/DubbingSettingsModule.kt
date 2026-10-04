@@ -64,6 +64,11 @@ object DubbingSettingsModule : SettingModule {
                 }
             }
 
+            DubbingPrefs.VOICE_MALE -> (pref as ListPreference).apply {
+                entries = Presets.chineseVoices.map { it.second }.toTypedArray()
+                entryValues = Presets.chineseVoices.map { it.first }.toTypedArray()
+            }
+
             DubbingPrefs.VOICE -> (pref as ListPreference).apply {
                 entries = Presets.chineseVoices.map { it.second }.toTypedArray()
                 entryValues = Presets.chineseVoices.map { it.first }.toTypedArray()

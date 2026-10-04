@@ -30,6 +30,10 @@ data class DubbingConfig(
     val sourceLanguageCode: String = "en",
     val asrSegmentSeconds: Int = 600,
     val embedChineseSubtitle: Boolean = false,
+    /** Dub men and women with different voices (guessed from the pitch of the original audio). */
+    val multiVoice: Boolean = false,
+    /** Voice for lines guessed as male when [multiVoice] is on; [voice] is used for female / unknown. */
+    val maleVoice: String = "zh-CN-YunxiNeural",
     /** When set, the Chinese subtitles are also written to this external .srt next to the dubbed video. */
     val externalSubtitle: File? = null,
     val externalSubtitleBilingual: Boolean = false,
@@ -139,6 +143,12 @@ class DubbingPipeline(
             )
         }
 
+        // 2b. Who is speaking (male / female voice), from the pitch of the original audio -----------
+        if (config.multiVoice && cues.any { it.speaker.isBlank() }) {
+            cues = SpeakerClassifier(ffmpeg, log).classify(video, cues, workDir)
+            save(sourceHash, cues)
+        }
+
         // 3. Text to speech ----------------------------------------------------------------------
         cues = synthesize(cues, workDir, sourceHash, save)
 
@@ -201,7 +211,7 @@ class DubbingPipeline(
                         val file = File(ttsDir, "%05d.%s".format(cue.id, tts.fileExtension))
                         try {
                             retrying(3, 1000) {
-                                tts.synthesize(text, config.voice, estimateRatePercent(input, i), file)
+                                tts.synthesize(text, voiceFor(cue), estimateRatePercent(input, i), file)
                                 if (!file.exists() || file.length() == 0L) throw java.io.IOException("empty TTS output")
                             }
                         } catch (e: CancellationException) {
@@ -225,6 +235,9 @@ class DubbingPipeline(
         save(sourceHash, cues.toList())
         cues
     }
+
+    internal fun voiceFor(cue: Cue): String =
+        if (config.multiVoice && cue.speaker == "M") config.maleVoice else config.voice
 
     /** Ask the voice to speak faster up front when the translation is long for its time slot. */
     internal fun estimateRatePercent(all: List<Cue>, i: Int): Int {

@@ -702,4 +702,7 @@
     <string name="dubbing_err_model">The service does not know this model name or address. Use “Fetch model list” and pick one.</string>
     <string name="dubbing_search_model">Search models (keywords)</string>
     <string name="dubbing_free_only">Free models only</string>
+    <string name="dubbing_multi_voice">Different voices for men and women</string>
+    <string name="dubbing_multi_voice_summary">Guesses male / female from the pitch of the original voice and uses the male voice below for low voices. Works for a man and a woman talking; it cannot tell two people of the same sex apart.</string>
+    <string name="dubbing_voice_male">Male voice</string>
 </resources>
