@@ -128,7 +128,10 @@ class DubbingPipeline(
 
         // 2. Translate ---------------------------------------------------------------------------
         val pendingLines = cues.count { it.zh.isBlank() }
-        if (pendingLines > 0) onPreview("Translating $pendingLines lines — waiting for the model to answer…")
+        if (pendingLines > 0) {
+            log("Translating $pendingLines lines")
+            onPreview("Translating $pendingLines lines — waiting for the model to answer…")
+        }
         onProgress(Progress(Stage.TRANSLATE, cues.size - pendingLines, cues.size))
         cues = translator.translate(
             cues,
@@ -173,6 +176,7 @@ class DubbingPipeline(
             if (stored != null && stored.hash == p.sourceHash) return p.cues to stored.roles
         }
         val labeler = labeler ?: throw DubbingException("Multi-role dubbing needs a translation service for the speaker labels")
+        log("Measuring the pitch of every voice")
         onPreview("Measuring the pitch of every voice…")
         val classifier = SpeakerClassifier(ffmpeg, log)
         val f0s = classifier.measure(video, p.cues, workDir)
@@ -213,9 +217,11 @@ class DubbingPipeline(
         }
 
         // 3. Text to speech ----------------------------------------------------------------------
+        log("Generating speech for ${cues.count { TtsText.speakable(TtsText.clean(it.zh)) }} sentences")
         cues = synthesize(cues, workDir, sourceHash, save)
 
         // 4. Align -------------------------------------------------------------------------------
+        log("Aligning the speech with the video")
         onProgress(Progress(Stage.ALIGN, 0, 1))
         val pcm = File(workDir, "dub.pcm")
         val alignReport = TimelineAligner(ffmpeg, config.align, log).align(
@@ -225,6 +231,7 @@ class DubbingPipeline(
         onProgress(Progress(Stage.ALIGN, 1, 1))
 
         // 5. Mux ---------------------------------------------------------------------------------
+        log("Writing the new audio track")
         onProgress(Progress(Stage.MUX, 0, 1))
         var muxOptions = config.mux
         if (config.embedChineseSubtitle) {

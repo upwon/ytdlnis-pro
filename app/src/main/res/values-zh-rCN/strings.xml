@@ -745,4 +745,5 @@
     <string name="dubbing_auto_retry">%1$s — 稍后自动重试（第 %2$d/%3$d 次）</string>
     <string name="dubbing_err_timeout">服务响应太慢（超时）。已完成的部分已保存，点“重试”会接着做。换一个更快的模型会好些。</string>
     <string name="dubbing_detail_idle">距上次有进展已过</string>
+    <string name="dubbing_cancel">取消</string>
 </resources>

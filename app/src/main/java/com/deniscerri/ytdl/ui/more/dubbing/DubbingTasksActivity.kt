@@ -66,6 +66,12 @@ class DubbingTasksActivity : BaseActivity() {
             },
             onDetail = { task -> showDetail(task.id) },
             onAssign = { task -> showRoleDialog(task) },
+            onCancel = { task ->
+                // stops the worker (it aborts the running request / ffmpeg); finished work stays saved for a retry
+                runCatching { WorkManager.getInstance(this).cancelWorkById(java.util.UUID.fromString(task.workId)) }
+                DubbingStatusStore.update(this, task.id) { it.copy(state = DubbingState.FAILED, message = getString(R.string.dubbing_cancelled)) }
+                refresh()
+            },
             onRemove = { task ->
                 DubbingStatusStore.remove(this, task.id)
                 refresh()
@@ -280,6 +286,7 @@ class DubbingTasksActivity : BaseActivity() {
         val onRemove: (DubbingTask) -> Unit,
         val onDetail: (DubbingTask) -> Unit,
         val onAssign: (DubbingTask) -> Unit,
+        val onCancel: (DubbingTask) -> Unit,
     ) : ListAdapter<DubbingTask, TaskAdapter.Holder>(object : DiffUtil.ItemCallback<DubbingTask>() {
         override fun areItemsTheSame(a: DubbingTask, b: DubbingTask) = a.id == b.id
         override fun areContentsTheSame(a: DubbingTask, b: DubbingTask) = a == b
@@ -342,6 +349,10 @@ class DubbingTasksActivity : BaseActivity() {
                 isVisible = msg.isNotBlank()
             }
 
+            c.findViewById<MaterialButton>(R.id.task_cancel).apply {
+                isVisible = t.state == DubbingState.RUNNING || t.state == DubbingState.QUEUED
+                setOnClickListener { onCancel(t) }
+            }
             c.findViewById<MaterialButton>(R.id.task_assign).apply {
                 isVisible = t.state == DubbingState.WAITING && t.roles.isNotBlank()
                 setOnClickListener { onAssign(t) }

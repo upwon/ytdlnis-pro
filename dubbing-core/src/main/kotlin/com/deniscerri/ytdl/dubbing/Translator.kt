@@ -52,6 +52,7 @@ class LlmTranslator(
     private val client: ChatClient,
     private val model: String,
     private val config: TranslatorConfig = TranslatorConfig(),
+    private val log: (String) -> Unit = {},
 ) : Translator {
 
     override suspend fun translate(
@@ -71,7 +72,10 @@ class LlmTranslator(
         pending.chunked(max(1, config.batchSize)).map { batch ->
             async {
                 gate.withPermit {
+                    val t0 = System.currentTimeMillis()
+                    log("Translating lines ${cues[batch.first()].id}-${cues[batch.last()].id} (${batch.size}), waiting for the model…")
                     val translated = translateBatchResilient(cues, batch)
+                    log("Translated ${translated.size} lines in ${(System.currentTimeMillis() - t0) / 1000}s")
                     lock.withLock {
                         translated.forEach { (idx, zh) -> result[idx] = result[idx].copy(zh = zh) }
                         done += translated.size

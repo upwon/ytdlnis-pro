@@ -71,6 +71,8 @@ class OpenAiCompatClient(
     private val extraHeaders: Map<String, String> = emptyMap(),
     private val maxAttempts: Int = 4,
     private val retryBaseDelayMs: Long = 1500,
+    /** Hard limit for one chat request. The read timeout alone never fires when a gateway keeps the line alive while queueing. */
+    private val chatTimeoutSeconds: Long = 150,
 ) : ChatClient {
     private val base = baseUrl.trim().trimEnd('/')
     private val json = Json { ignoreUnknownKeys = true }
@@ -96,6 +98,7 @@ class OpenAiCompatClient(
             if (request.jsonMode) put("response_format", buildJsonObject { put("type", "json_object") })
         }
         val call = http.newCall(request("/chat/completions").post(body.toString().toRequestBody(jsonType)).build())
+        call.timeout().timeout(chatTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
         parseChat(call.awaitBytes().toString(Charsets.UTF_8))
     }
 
@@ -153,8 +156,9 @@ class OpenAiCompatClient(
                 .addFormDataPart("timestamp_granularities[]", "segment")
             if (!language.isNullOrBlank()) form.addFormDataPart("language", language)
             form.addFormDataPart("file", file.name, file.asRequestBody("application/octet-stream".toMediaType()))
-            val raw = http.newCall(request("/audio/transcriptions").post(form.build()).build())
-                .awaitBytes().toString(Charsets.UTF_8)
+            val call = http.newCall(request("/audio/transcriptions").post(form.build()).build())
+            call.timeout().timeout(480, java.util.concurrent.TimeUnit.SECONDS)
+            val raw = call.awaitBytes().toString(Charsets.UTF_8)
             parseTranscription(raw, fallbackDurationMs)
         }
 

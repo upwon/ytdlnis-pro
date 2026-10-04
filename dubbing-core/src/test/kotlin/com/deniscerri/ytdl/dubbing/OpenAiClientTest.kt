@@ -28,6 +28,16 @@ class OpenAiClientTest {
     private fun ok(body: String) = MockResponse.Builder().code(200).addHeader("Content-Type", "application/json").body(body).build()
 
     @Test
+    fun aRequestThatNeverAnswersIsCutOff() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(200).body("""{"choices":[{"message":{"content":"late"}}]}""")
+            .bodyDelay(10, java.util.concurrent.TimeUnit.SECONDS).build())
+        val c = OpenAiCompatClient(server.url("/v1").toString(), "k", maxAttempts = 1, chatTimeoutSeconds = 1)
+        val t0 = System.currentTimeMillis()
+        assertFailsWith<java.io.IOException> { c.chat(ChatRequest("m", listOf(ChatMessage("user", "hi")))) }
+        assertTrue(System.currentTimeMillis() - t0 < 5_000, "gave up after the call timeout instead of waiting for the body")
+    }
+
+    @Test
     fun dailyQuotaIsNotRetried() = runBlocking {
         server.enqueue(MockResponse.Builder().code(429).body("""{"error":{"message":"Rate limit exceeded: free-models-per-day"}}""").build())
         val e = assertFailsWith<ApiException> { client().chat(ChatRequest("m", listOf(ChatMessage("user", "hi")))) }

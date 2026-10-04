@@ -141,6 +141,7 @@ class DubbingFactory(private val context: Context) {
             client = llmClient(),
             model = str(DubbingPrefs.LLM_MODEL),
             config = TranslatorConfig(glossary = str(DubbingPrefs.GLOSSARY)),
+            log = log,
         )
         val pipeline = DubbingPipeline(
             ffmpeg = AndroidFfmpegRunner(),
