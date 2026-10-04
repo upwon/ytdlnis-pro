@@ -79,6 +79,9 @@ class DubbingFactory(private val context: Context) {
      * Voices for up to four speakers: the chosen female / male voice first, then further Mandarin voices of the same
      * sex. Extra voices only exist for Edge / Azure (they share the voice names); other engines reuse the two chosen.
      */
+    private fun extraVoicesAvailable(): Boolean =
+        str(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE).let { it == DubbingPrefs.ENGINE_EDGE || it == DubbingPrefs.ENGINE_AZURE }
+
     private fun speakerVoices(female: String, male: String): Map<String, String> {
         val map = linkedMapOf("F1" to female, "M1" to male)
         val engine = str(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE)
@@ -111,6 +114,7 @@ class DubbingFactory(private val context: Context) {
         externalSubtitle: java.io.File? = null,
         needTts: Boolean = true,
         onPreview: (String) -> Unit = {},
+        roleVoices: Map<String, String> = emptyMap(),
     ): Setup {
         if (!llmConfigured()) throw DubbingException("Translation service is not configured")
         val (tts, system) = if (needTts) createTts(log) else (NoTts as TtsProvider) to null
@@ -121,6 +125,10 @@ class DubbingFactory(private val context: Context) {
             multiVoice = prefs.getBoolean(DubbingPrefs.MULTI_VOICE, false),
             maleVoice = str(DubbingPrefs.VOICE_MALE, "zh-CN-YunxiNeural").ifEmpty { "zh-CN-YunxiNeural" },
             maxSpeakers = (str(DubbingPrefs.SPEAKER_COUNT, "2").toIntOrNull() ?: 2).coerceIn(2, 4),
+            llmRoles = prefs.getBoolean(DubbingPrefs.ROLES_LLM, false),
+            roleVoices = roleVoices,
+            extraFemaleVoices = if (extraVoicesAvailable()) Presets.femaleVoiceIds else emptyList(),
+            extraMaleVoices = if (extraVoicesAvailable()) Presets.maleVoiceIds else emptyList(),
             speakerVoices = speakerVoices(voice(), str(DubbingPrefs.VOICE_MALE, "zh-CN-YunxiNeural").ifEmpty { "zh-CN-YunxiNeural" }),
             externalSubtitle = externalSubtitle,
             externalSubtitleBilingual = prefs.getBoolean(DubbingPrefs.SUBTITLE_BILINGUAL, false),
@@ -143,6 +151,9 @@ class DubbingFactory(private val context: Context) {
             log = log,
             onProgress = onProgress,
             onPreview = onPreview,
+            labeler = if (prefs.getBoolean(DubbingPrefs.ROLES_LLM, false)) {
+                com.deniscerri.ytdl.dubbing.SpeakerLabeler(llmClient(), str(DubbingPrefs.LLM_MODEL), log = log)
+            } else null,
         )
         return Setup(pipeline, system)
     }

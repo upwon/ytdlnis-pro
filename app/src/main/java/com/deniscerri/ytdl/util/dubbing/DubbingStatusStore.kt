@@ -6,7 +6,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-enum class DubbingState { QUEUED, RUNNING, DONE, FAILED }
+/** WAITING: analysed, the user still has to pick a voice for every person ("roles" holds who they are). */
+enum class DubbingState { QUEUED, RUNNING, WAITING, DONE, FAILED }
 
 data class DubbingTask(
     val id: String,
@@ -27,6 +28,8 @@ data class DubbingTask(
     val sourcePath: String = "",
     val preview: String = "",
     val log: String = "",
+    /** JSON array of the people found in the video (id, gender, lines, samples, note, voice) while WAITING. */
+    val roles: String = "",
 )
 
 const val KIND_DUB = "dub"
@@ -80,7 +83,7 @@ object DubbingStatusStore {
         .put("id", t.id).put("historyId", t.historyId).put("title", t.title).put("state", t.state.name)
         .put("stage", t.stage).put("done", t.done).put("total", t.total).put("message", t.message)
         .put("outputPath", t.outputPath).put("createdAt", t.createdAt).put("updatedAt", t.updatedAt)
-        .put("workId", t.workId).put("kind", t.kind).put("sourcePath", t.sourcePath).put("preview", t.preview).put("log", t.log)
+        .put("workId", t.workId).put("kind", t.kind).put("sourcePath", t.sourcePath).put("preview", t.preview).put("log", t.log).put("roles", t.roles)
 
     private fun fromJson(o: JSONObject) = DubbingTask(
         id = o.getString("id"),
@@ -99,5 +102,6 @@ object DubbingStatusStore {
         sourcePath = o.optString("sourcePath"),
         preview = o.optString("preview"),
         log = o.optString("log"),
+        roles = o.optString("roles"),
     )
 }

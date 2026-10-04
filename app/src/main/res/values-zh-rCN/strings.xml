@@ -727,4 +727,21 @@
     <string name="dubbing_log_sub_found">英文字幕已下载</string>
     <string name="dubbing_log_sub_none">没有找到英文字幕，将使用语音识别</string>
     <string name="dubbing_log_saved">已保存：%1$s</string>
+    <string name="dubbing_roles_llm">多角色配音（大模型识别说话人）</string>
+    <string name="dubbing_roles_llm_summary">由大模型判断每句话是谁说的（并参考原声音高）。会多用几次请求。开启后，“男女分别用不同音色”不再生效。</string>
+    <string name="dubbing_roles_confirm">先让我确认各角色的音色</string>
+    <string name="dubbing_roles_confirm_summary">分析完后任务会停在“配音任务”里，你可以试听并修改每个人的音色再开始配音</string>
+    <string name="dubbing_roles_waiting">等你为每个角色选好音色</string>
+    <string name="dubbing_state_waiting">待选音色</string>
+    <string name="dubbing_roles_assign">选择音色</string>
+    <string name="dubbing_roles_title">说话人</string>
+    <string name="dubbing_roles_start">开始配音</string>
+    <string name="dubbing_roles_listen">试听</string>
+    <string name="dubbing_roles_person">角色 %1$d · %2$s · %3$d 句</string>
+    <string name="dubbing_male">男</string>
+    <string name="dubbing_female">女</string>
+    <string name="dubbing_log_roles">识别出 %1$d 位说话人</string>
+    <string name="dubbing_log_skipped">有 %1$d 句没能生成语音，已留空</string>
+    <string name="dubbing_auto_retry">%1$s — 稍后自动重试（第 %2$d/%3$d 次）</string>
+    <string name="dubbing_err_timeout">服务响应太慢（超时）。已完成的部分已保存，点“重试”会接着做。换一个更快的模型会好些。</string>
 </resources>

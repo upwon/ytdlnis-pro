@@ -726,4 +726,21 @@
     <string name="dubbing_log_sub_found">English subtitles downloaded</string>
     <string name="dubbing_log_sub_none">No English subtitles found, will use speech recognition</string>
     <string name="dubbing_log_saved">Saved: %1$s</string>
+    <string name="dubbing_roles_llm">Multi-role dubbing (speakers found by the language model)</string>
+    <string name="dubbing_roles_llm_summary">The model works out who speaks each line (using the pitch of the voices as a hint). Costs a few extra requests. Overrides “Different voices for men and women”.</string>
+    <string name="dubbing_roles_confirm">Let me choose the voices first</string>
+    <string name="dubbing_roles_confirm_summary">After the analysis the task waits in “Dubbing tasks” so you can listen to and change the voice of each person</string>
+    <string name="dubbing_roles_waiting">Waiting for you to choose a voice for each person</string>
+    <string name="dubbing_state_waiting">Choose voices</string>
+    <string name="dubbing_roles_assign">Choose voices</string>
+    <string name="dubbing_roles_title">Who speaks</string>
+    <string name="dubbing_roles_start">Start dubbing</string>
+    <string name="dubbing_roles_listen">Listen</string>
+    <string name="dubbing_roles_person">Person %1$d · %2$s · %3$d lines</string>
+    <string name="dubbing_male">male</string>
+    <string name="dubbing_female">female</string>
+    <string name="dubbing_log_roles">%1$d speaker(s) found</string>
+    <string name="dubbing_log_skipped">%1$d sentence(s) could not be voiced and were left silent</string>
+    <string name="dubbing_auto_retry">%1$s — retrying automatically (attempt %2$d of %3$d)</string>
+    <string name="dubbing_err_timeout">The service took too long to answer (timeout). Finished parts are saved: “Retry” continues where it stopped. A faster model or a smaller load may help.</string>
 </resources>

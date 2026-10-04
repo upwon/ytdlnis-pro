@@ -80,6 +80,22 @@
             app:summary="@string/dubbing_multi_voice_summary"
             app:title="@string/dubbing_multi_voice" />
 
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_translate"
+            app:key="dubbing_roles_llm"
+            app:summary="@string/dubbing_roles_llm_summary"
+            app:title="@string/dubbing_roles_llm" />
+
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="true"
+            app:icon="@drawable/ic_translate"
+            app:key="dubbing_roles_confirm"
+            app:summary="@string/dubbing_roles_confirm_summary"
+            app:title="@string/dubbing_roles_confirm" />
+
         <ListPreference
             app:icon="@drawable/ic_translate"
             app:key="dubbing_speaker_count"

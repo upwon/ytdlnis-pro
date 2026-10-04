@@ -178,25 +178,50 @@ class DubbingWorker(
             val externalSrt = File(workDir, "zh.srt").takeIf {
                 PreferenceManager.getDefaultSharedPreferences(context).getBoolean(DubbingPrefs.EXTERNAL_SUBTITLE, true)
             }
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            val roleVoices = parseRoleVoices(inputData.getString(KEY_ROLE_VOICES))
+            // multi-role mode: first work out who speaks, let the user pick voices, then speak (see continueWithRoles)
+            val askForRoles = prefs.getBoolean(DubbingPrefs.ROLES_LLM, false) &&
+                prefs.getBoolean(DubbingPrefs.ROLES_CONFIRM, true) &&
+                roleVoices.isEmpty() && !inputData.getBoolean(KEY_SKIP_CONFIRM, false)
             val setup = DubbingFactory(context).create(
                 log = { android.util.Log.d(TAG, it); note(it) },
                 onProgress = { showProgress(title, it) },
                 externalSubtitle = externalSrt,
                 onPreview = { preview = it },
+                roleVoices = roleVoices,
             )
-            try {
+            val report = try {
+                if (askForRoles) {
+                    val roles = setup.pipeline.analyzeRoles(source, subtitle, workDir)
+                    note(context.getString(R.string.dubbing_log_roles, roles.size))
+                    if (roles.size > 1) {
+                        flushDetails(force = true)
+                        updateTask {
+                            it.copy(
+                                state = DubbingState.WAITING, stage = "", preview = "", roles = rolesToJson(roles),
+                                message = context.getString(R.string.dubbing_roles_waiting),
+                            )
+                        }
+                        showResult(item, true, context.getString(R.string.dubbing_roles_waiting))
+                        return Result.success()
+                    }
+                }
                 setup.pipeline.run(source, subtitle, workDir, dubbed)
             } finally {
                 setup.close()
             }
+            if (report.skipped > 0) note(context.getString(R.string.dubbing_log_skipped, report.skipped))
 
             val newPath = withContext(Dispatchers.IO) { place(item, sourcePath, source, dubbed, outExt, dao, externalSrt?.takeIf { it.exists() }) }
             runCatching { FileUtil.scanMedia(listOf(newPath), context) }
             workDir.deleteRecursively()
             note(context.getString(R.string.dubbing_log_saved, newPath))
             flushDetails(force = true)
+            val doneText = context.getString(R.string.dubbing_done) +
+                if (report.skipped > 0) " · " + context.getString(R.string.dubbing_log_skipped, report.skipped) else ""
             updateTask {
-                it.copy(state = DubbingState.DONE, outputPath = newPath, stage = "", message = context.getString(R.string.dubbing_done), preview = "")
+                it.copy(state = DubbingState.DONE, outputPath = newPath, stage = "", message = doneText, preview = "")
             }
             showResult(item, true, context.getString(R.string.dubbing_done))
             return Result.success()
@@ -208,6 +233,14 @@ class DubbingWorker(
             val reason = friendlyReason(e)
             note("${e.javaClass.simpleName}: ${e.message}")
             flushDetails(force = true)
+            // timeouts, dropped connections and 5xx are usually temporary: try again by itself, the checkpoint keeps the finished work
+            if (isTransient(e) && runAttemptCount < MAX_AUTO_RETRIES) {
+                val next = runAttemptCount + 2
+                updateTask {
+                    it.copy(state = DubbingState.QUEUED, message = context.getString(R.string.dubbing_auto_retry, reason, next, MAX_AUTO_RETRIES + 1))
+                }
+                return Result.retry()
+            }
             updateTask { it.copy(state = DubbingState.FAILED, message = reason) }
             showResult(item, false, "${context.getString(R.string.dubbing_failed)}: $reason")
             return Result.failure()
@@ -273,10 +306,40 @@ class DubbingWorker(
         }
     }
 
+    private fun isTransient(e: Throwable): Boolean {
+        var t: Throwable? = e
+        while (t != null) {
+            if (t is ApiException) return t.retryable
+            if (t is java.io.IOException) return true
+            t = t.cause
+        }
+        return false
+    }
+
+    private fun parseRoleVoices(json: String?): Map<String, String> {
+        if (json.isNullOrBlank()) return emptyMap()
+        return runCatching {
+            val o = org.json.JSONObject(json)
+            o.keys().asSequence().associateWith { o.getString(it) }
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun rolesToJson(roles: List<com.deniscerri.ytdl.dubbing.Role>): String {
+        val arr = org.json.JSONArray()
+        roles.forEach { r ->
+            arr.put(
+                org.json.JSONObject().put("id", r.id).put("gender", r.gender).put("lines", r.lines)
+                    .put("samples", org.json.JSONArray(r.samples)).put("note", r.note).put("voice", r.voice)
+            )
+        }
+        return arr.toString()
+    }
+
     /** Turns the common API failures into something actionable instead of a raw JSON error body. */
     private fun friendlyReason(e: Throwable): String {
         var t: Throwable? = e
         while (t != null) {
+            if (t is java.net.SocketTimeoutException) return context.getString(R.string.dubbing_err_timeout)
             if (t is ApiException) {
                 return when {
                     t.quotaExhausted -> context.getString(R.string.dubbing_err_quota)
@@ -405,6 +468,9 @@ class DubbingWorker(
         const val KEY_TYPE = "type"
         const val KEY_TASK_ID = "task_id"
         const val KEY_MODE = "mode"
+        const val KEY_ROLE_VOICES = "role_voices"
+        const val KEY_SKIP_CONFIRM = "skip_confirm"
+        private const val MAX_AUTO_RETRIES = 2
         const val MODE_SUBTITLE = "subtitle"
         private const val TAG = "DubbingWorker"
         private const val FOREGROUND_ID = 1_500_000_000

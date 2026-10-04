@@ -65,6 +65,7 @@ class DubbingTasksActivity : BaseActivity() {
                 lifecycleScope.launch { delay(400); refresh() }
             },
             onDetail = { task -> showDetail(task.id) },
+            onAssign = { task -> showRoleDialog(task) },
             onRemove = { task ->
                 DubbingStatusStore.remove(this, task.id)
                 refresh()
@@ -95,7 +96,7 @@ class DubbingTasksActivity : BaseActivity() {
             val tasks = withContext(Dispatchers.IO) { reconcile() }
             val shown = tasks.filter {
                 when (filter) {
-                    R.id.filter_running -> it.state == DubbingState.QUEUED || it.state == DubbingState.RUNNING
+                    R.id.filter_running -> it.state == DubbingState.QUEUED || it.state == DubbingState.RUNNING || it.state == DubbingState.WAITING
                     R.id.filter_done -> it.state == DubbingState.DONE
                     R.id.filter_failed -> it.state == DubbingState.FAILED
                     else -> true
@@ -104,6 +105,93 @@ class DubbingTasksActivity : BaseActivity() {
             adapter.submitList(shown)
             empty.isVisible = shown.isEmpty()
         }
+    }
+
+    /** One card per person: who they are, example lines, a voice picker and a "listen" button. Start continues the task. */
+    private fun showRoleDialog(task: DubbingTask) {
+        val roles = runCatching {
+            val arr = org.json.JSONArray(task.roles)
+            (0 until arr.length()).map { arr.getJSONObject(it) }
+        }.getOrDefault(emptyList())
+        if (roles.isEmpty()) return
+        val voices = com.deniscerri.ytdl.dubbing.Presets.chineseVoices
+        val dp = resources.displayMetrics.density
+        val chosen = HashMap<String, String>()
+        val column = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val pad = (20 * dp).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+        }
+        var player: android.media.MediaPlayer? = null
+
+        roles.forEachIndexed { n, r ->
+            val id = r.getString("id")
+            val male = r.getString("gender") == "M"
+            chosen[id] = r.optString("voice")
+            column.addView(TextView(this).apply {
+                text = getString(R.string.dubbing_roles_person, n + 1, getString(if (male) R.string.dubbing_male else R.string.dubbing_female), r.optInt("lines"))
+                textSize = 16f
+                setPadding(0, (14 * dp).toInt(), 0, (2 * dp).toInt())
+            })
+            val note = r.optString("note")
+            val samples = r.optJSONArray("samples")
+            val sampleText = (0 until (samples?.length() ?: 0)).joinToString("\n") { "· " + samples!!.getString(it) }
+            column.addView(TextView(this).apply {
+                text = (if (note.isNotBlank()) note + "\n" else "") + sampleText
+                textSize = 13f
+                alpha = 0.75f
+            })
+            val ids = voices.map { it.first }.toMutableList()
+            val labels = voices.map { it.second }.toMutableList()
+            if (chosen[id] !in ids) { ids += chosen[id]!!; labels += chosen[id]!! }
+            val spinner = android.widget.Spinner(this).apply {
+                adapter = android.widget.ArrayAdapter(this@DubbingTasksActivity, android.R.layout.simple_spinner_dropdown_item, labels)
+                setSelection(ids.indexOf(chosen[id]).coerceAtLeast(0))
+                onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, i: Long) { chosen[id] = ids[pos] }
+                    override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+                }
+            }
+            val listen = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = getString(R.string.dubbing_roles_listen)
+                setOnClickListener {
+                    val line = samples?.takeIf { it.length() > 0 }?.getString(0) ?: return@setOnClickListener
+                    lifecycleScope.launch {
+                        runCatching {
+                            val factory = com.deniscerri.ytdl.util.dubbing.DubbingFactory(this@DubbingTasksActivity)
+                            val (tts, system) = factory.createTts()
+                            try {
+                                val file = java.io.File(cacheDir, "dubbing_role_${n}.${tts.fileExtension}")
+                                withContext(Dispatchers.IO) { tts.synthesize(line, chosen[id].orEmpty(), 0, file) }
+                                player?.release()
+                                player = android.media.MediaPlayer().apply {
+                                    setDataSource(file.absolutePath); prepare(); start()
+                                    setOnCompletionListener { release() }
+                                }
+                            } finally { system?.shutdown() }
+                        }.onFailure { android.widget.Toast.makeText(this@DubbingTasksActivity, it.message.orEmpty(), android.widget.Toast.LENGTH_LONG).show() }
+                    }
+                }
+            }
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(spinner, android.widget.LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                addView(listen)
+            }
+            column.addView(row)
+        }
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dubbing_roles_title)
+            .setView(android.widget.ScrollView(this).apply { addView(column) })
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.dubbing_roles_start) { _, _ ->
+                DubbingScheduler.continueWithRoles(this, task, chosen)
+                refresh()
+            }
+            .create()
+        dialog.setOnDismissListener { player?.release() }
+        dialog.show()
     }
 
     /** Live details of one job: status, time, the file, the sentence being handled and the recent log. */
@@ -127,6 +215,7 @@ class DubbingTasksActivity : BaseActivity() {
                 when (t.state) {
                     DubbingState.QUEUED -> R.string.dubbing_state_queued
                     DubbingState.RUNNING -> R.string.dubbing_state_running
+                    DubbingState.WAITING -> R.string.dubbing_state_waiting
                     DubbingState.DONE -> R.string.dubbing_state_done
                     DubbingState.FAILED -> R.string.dubbing_state_failed
                 }
@@ -186,6 +275,7 @@ class DubbingTasksActivity : BaseActivity() {
         val onRetry: (DubbingTask) -> Unit,
         val onRemove: (DubbingTask) -> Unit,
         val onDetail: (DubbingTask) -> Unit,
+        val onAssign: (DubbingTask) -> Unit,
     ) : ListAdapter<DubbingTask, TaskAdapter.Holder>(object : DiffUtil.ItemCallback<DubbingTask>() {
         override fun areItemsTheSame(a: DubbingTask, b: DubbingTask) = a.id == b.id
         override fun areContentsTheSame(a: DubbingTask, b: DubbingTask) = a == b
@@ -204,6 +294,7 @@ class DubbingTasksActivity : BaseActivity() {
             val statusRes = when (t.state) {
                 DubbingState.QUEUED -> R.string.dubbing_state_queued
                 DubbingState.RUNNING -> R.string.dubbing_state_running
+                DubbingState.WAITING -> R.string.dubbing_state_waiting
                 DubbingState.DONE -> R.string.dubbing_state_done
                 DubbingState.FAILED -> R.string.dubbing_state_failed
             }
@@ -239,13 +330,18 @@ class DubbingTasksActivity : BaseActivity() {
             c.findViewById<TextView>(R.id.task_message).apply {
                 val msg = when (t.state) {
                     DubbingState.DONE -> if (t.outputPath.isNotBlank()) ctx.getString(R.string.dubbing_saved_to, t.outputPath) else ""
-                    DubbingState.FAILED -> t.message
+                    DubbingState.FAILED, DubbingState.WAITING -> t.message
+                    DubbingState.QUEUED -> t.message
                     else -> ""
                 }
                 text = msg
                 isVisible = msg.isNotBlank()
             }
 
+            c.findViewById<MaterialButton>(R.id.task_assign).apply {
+                isVisible = t.state == DubbingState.WAITING && t.roles.isNotBlank()
+                setOnClickListener { onAssign(t) }
+            }
             c.findViewById<MaterialButton>(R.id.task_open).apply {
                 isVisible = t.state == DubbingState.DONE && t.outputPath.isNotBlank() && t.kind == com.deniscerri.ytdl.util.dubbing.KIND_DUB
                 setOnClickListener { onOpen(t) }
