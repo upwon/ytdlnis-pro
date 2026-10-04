@@ -26,6 +26,29 @@ class DubbingTasksScreenTest {
 
     private fun has(text: String, ms: Long = 25_000) = ui.findContains(text, ms) != null
 
+    @Test fun waitingTaskOffersVoiceAssignmentPerPerson() {
+        val ctx = Env.ctx
+        val roles = """[{"id":"S1","gender":"M","lines":12,"samples":["你好，欢迎收听","今天聊聊配音"],"note":"host, male","voice":"zh-CN-YunxiNeural"},
+            {"id":"S2","gender":"F","lines":9,"samples":["谢谢邀请"],"note":"guest, female","voice":"zh-CN-XiaoxiaoNeural"}]"""
+        DubbingStatusStore.add(ctx, DubbingTask(id = "t-wait", title = "Two people talking", state = DubbingState.WAITING, historyId = 1, roles = roles))
+        try {
+            ActivityScenario.launch(DubbingTasksActivity::class.java).use { scenario ->
+                ui.relaunch = { scenario.recreate() }
+                ui.ensureForeground { scenario.recreate() }
+                assertTrue("waiting task visible", has("Two people talking"))
+                assertTrue("choose-voices state shown", has("Choose voices"))
+                device.findObject(By.res(Env.ctx.packageName, "task_assign"))?.click()
+                assertTrue("first person listed", has("Person 1"))
+                assertTrue("second person listed", has("Person 2"))
+                assertTrue("example line shown", has("你好，欢迎收听"))
+                assertTrue("start button", has("Start dubbing"))
+                device.pressBack()
+            }
+        } finally {
+            DubbingStatusStore.remove(ctx, "t-wait")
+        }
+    }
+
     @Test fun showsStatusAndFiltersByIt() {
         val ctx = Env.ctx
         DubbingStatusStore.clearFinished(ctx)
