@@ -83,19 +83,24 @@ class SpeakerClassifier(
 ) {
     /** Returns [cues] with [Cue.speaker] filled in; on any problem the cues come back unchanged. */
     suspend fun classify(video: File, cues: List<Cue>, workDir: File): List<Cue> {
-        if (cues.isEmpty()) return cues
+        val f0s = measure(video, cues, workDir) ?: return cues
+        val labels = assign(f0s, maxSpeakers)
+        log("Pitch analysis: ${f0s.count { it != null }}/${cues.size} lines voiced -> ${labels.groupingBy { it }.eachCount()}")
+        return cues.mapIndexed { i, cue -> cue.copy(speaker = labels[i]) }
+    }
+
+    /** Median pitch (Hz) of every line, null where the voice is unclear; null overall when the audio cannot be read. */
+    suspend fun measure(video: File, cues: List<Cue>, workDir: File): List<Double?>? {
+        if (cues.isEmpty()) return null
         workDir.mkdirs()
         val pcm = File(workDir, "pitch.pcm")
         val r = ffmpeg.run(listOf("-i", video.absolutePath, "-vn", "-map", "0:a:0", "-ac", "1", "-ar", PitchEstimator.SAMPLE_RATE.toString(), "-f", "s16le", pcm.absolutePath))
         if (!r.ok || !pcm.exists()) {
             log("Pitch analysis skipped: ${r.log.takeLast(200)}")
-            return cues
+            return null
         }
         try {
-            val f0s = withContext(Dispatchers.IO) { RandomAccessFile(pcm, "r").use { f -> cues.map { cueF0(f, it) } } }
-            val labels = assign(f0s, maxSpeakers)
-            log("Pitch analysis: ${f0s.count { it != null }}/${cues.size} lines voiced -> ${labels.groupingBy { it }.eachCount()}")
-            return cues.mapIndexed { i, cue -> cue.copy(speaker = labels[i]) }
+            return withContext(Dispatchers.IO) { RandomAccessFile(pcm, "r").use { f -> cues.map { cueF0(f, it) } } }
         } finally {
             pcm.delete()
         }

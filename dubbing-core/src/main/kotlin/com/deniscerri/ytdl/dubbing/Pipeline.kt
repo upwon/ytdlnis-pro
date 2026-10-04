@@ -35,8 +35,15 @@ data class DubbingConfig(
     val multiVoice: Boolean = false,
     /** Voice for lines guessed as male when [multiVoice] is on; [voice] is used for female / unknown. */
     val maleVoice: String = "zh-CN-YunxiNeural",
-    /** How many speakers to tell apart by pitch (2 = man / woman). */
+    /** How many speakers to tell apart (by pitch, or by the language model when [llmRoles] is on). */
     val maxSpeakers: Int = 2,
+    /** Let the language model work out who speaks each line (needs a labeler); voices are then chosen per person. */
+    val llmRoles: Boolean = false,
+    /** Voice per person ("S1", "S2"...) chosen on the assignment screen; missing ones use the suggested voice. */
+    val roleVoices: Map<String, String> = emptyMap(),
+    /** Extra Mandarin voices handed to people of the same sex after the two main voices. */
+    val extraFemaleVoices: List<String> = emptyList(),
+    val extraMaleVoices: List<String> = emptyList(),
     /** Optional per-speaker voices ("M1", "M2", "F1", "F2"...); labels missing here use [maleVoice] / [voice]. */
     val speakerVoices: Map<String, String> = emptyMap(),
     /** When set, the Chinese subtitles are also written to this external .srt next to the dubbed video. */
@@ -59,6 +66,9 @@ data class DubbingReport(
 @Serializable
 private data class Checkpoint(val sourceHash: String, val cues: List<Cue>)
 
+@Serializable
+internal data class RolesStored(val hash: String, val roles: List<Role>)
+
 /**
  * subtitles (or speech recognition) -> translation -> TTS -> timeline alignment -> new audio track in the video.
  * Every expensive step is checkpointed in `workDir`, so a failed run resumes without repeating API calls.
@@ -73,6 +83,7 @@ class DubbingPipeline(
     private val onProgress: (Progress) -> Unit = {},
     /** Free-text "what is happening now" (the sentence being translated / voiced) for the UI. */
     private val onPreview: (String) -> Unit = {},
+    private val labeler: SpeakerLabeler? = null,
 ) {
     private val json = Json { prettyPrint = false; ignoreUnknownKeys = true }
 
@@ -141,6 +152,39 @@ class DubbingPipeline(
         return prepared.cues.count { it.zh.isNotBlank() }
     }
 
+    /**
+     * First half of a "multi-role" dub: source text, translation, then who speaks which line. Everything is
+     * checkpointed in [workDir], so the following [run] only has to speak. Returns the people found, each with a
+     * suggested voice, for the assignment screen.
+     */
+    suspend fun analyzeRoles(video: File, subtitle: File?, workDir: File): List<Role> {
+        val info = ffmpeg.probe(video)
+        val prepared = prepare(video, info, subtitle, workDir)
+        return ensureRoles(video, prepared, workDir).second
+    }
+
+    private suspend fun ensureRoles(video: File, p: Prepared, workDir: File): Pair<List<Cue>, List<Role>> {
+        val file = File(workDir, "roles.json")
+        if (p.cues.all { it.speaker.startsWith("S") }) {
+            val stored = runCatching { json.decodeFromString<RolesStored>(file.readText()) }.getOrNull()
+            if (stored != null && stored.hash == p.sourceHash) return p.cues to stored.roles
+        }
+        val labeler = labeler ?: throw DubbingException("Multi-role dubbing needs a translation service for the speaker labels")
+        onPreview("Measuring the pitch of every voice…")
+        val classifier = SpeakerClassifier(ffmpeg, log)
+        val f0s = classifier.measure(video, p.cues, workDir)
+        val threshold = SpeakerClassifier.genderThreshold(f0s?.filterNotNull().orEmpty())
+        val hints = p.cues.indices.map { i -> f0s?.get(i)?.let { if (it < threshold) "M" else "F" } }
+        val labeling = labeler.label(p.cues, hints, config.maxSpeakers.coerceIn(2, 6)) { d, t -> onPreview("Identifying speakers $d/$t") }
+        val pool = VoicePool(config.voice, config.maleVoice, config.extraFemaleVoices, config.extraMaleVoices)
+        val (labels, roles) = RoleBuilder.build(p.cues, labeling, f0s, threshold, config.maxSpeakers.coerceIn(2, 6), pool)
+        val cues = p.cues.mapIndexed { i, c -> c.copy(speaker = labels[i]) }
+        p.save(p.sourceHash, cues)
+        file.writeText(json.encodeToString(RolesStored(p.sourceHash, roles)))
+        log("Speakers: " + roles.joinToString { "${it.id}=${it.gender}(${it.lines})" })
+        return cues to roles
+    }
+
     suspend fun run(video: File, subtitle: File?, workDir: File, output: File): DubbingReport {
         val info = ffmpeg.probe(video)
         val prepared = prepare(video, info, subtitle, workDir)
@@ -155,8 +199,12 @@ class DubbingPipeline(
             )
         }
 
-        // 2b. Who is speaking (male / female voice), from the pitch of the original audio -----------
-        if (config.multiVoice && cues.any { it.speaker.isBlank() }) {
+        // 2b. Who is speaking -------------------------------------------------------------------
+        if (config.llmRoles) {
+            val (labelled, roles) = ensureRoles(video, Prepared(cues, sourceHash, save, usedAsr), workDir)
+            cues = labelled
+            roleVoiceMap = roles.associate { it.id to (config.roleVoices[it.id] ?: it.voice) }
+        } else if (config.multiVoice && cues.any { it.speaker.isBlank() }) {
             cues = SpeakerClassifier(ffmpeg, log, config.maxSpeakers).classify(video, cues, workDir)
             save(sourceHash, cues)
         }
@@ -263,7 +311,10 @@ class DubbingPipeline(
 
     private var skippedSentences = 0
 
+    private var roleVoiceMap: Map<String, String> = emptyMap()
+
     internal fun voiceFor(cue: Cue): String {
+        if (config.llmRoles) return roleVoiceMap[cue.speaker] ?: config.voice
         if (!config.multiVoice) return config.voice
         config.speakerVoices[cue.speaker]?.let { return it }
         return if (cue.speaker.startsWith("M")) config.maleVoice else config.voice

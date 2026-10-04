@@ -76,6 +76,7 @@ class PipelineTest {
         withAsr: Boolean = false,
         events: MutableList<Progress>? = null,
         logs: MutableList<String>? = null,
+        withLabeler: Boolean = false,
     ): DubbingPipeline {
         val c = client()
         return DubbingPipeline(
@@ -86,7 +87,20 @@ class PipelineTest {
             asr = if (withAsr) OpenAiCompatAsr(c, "whisper") else null,
             log = { logs?.add(it) },
             onProgress = { events?.add(it) },
+            labeler = if (withLabeler) SpeakerLabeler(c, "fake-model", windowSize = 50) else null,
         )
+    }
+
+    /** Fake model for the speaker-labelling prompt: low pitch -> S1, high pitch -> S2 (what a sensible model would conclude). */
+    private fun labelByPitch(request: RecordedRequest): String? {
+        val messages = Json.parseToJsonElement(request.body!!.utf8()).jsonObject["messages"]!!.jsonArray
+        if (!messages.first().jsonObject["content"]!!.jsonPrimitive.content.contains("WHO speaks")) return null
+        val user = Json.parseToJsonElement(messages.last().jsonObject["content"]!!.jsonPrimitive.content).jsonObject
+        val rows = user["lines"]!!.jsonArray.joinToString(",") {
+            val o = it.jsonObject
+            """{"id":${o["id"]!!.jsonPrimitive.content},"spk":"${if (o["pitch"]!!.jsonPrimitive.content == "M") "S1" else "S2"}"}"""
+        }
+        return """{"speakers":[$rows],"roster":{"S1":"host, male","S2":"guest, female"}}"""
     }
 
     private fun video(seconds: Int = 30, name: String = "v.mp4") =
@@ -191,6 +205,60 @@ class PipelineTest {
         val t = SpeakerClassifier.genderThreshold(listOf(105.0, 110.0, 112.0, 108.0, 190.0, 195.0, 200.0, 188.0))
         assertTrue(t in 130.0..175.0, "threshold $t should sit between the two groups")
         assertEquals(SpeakerClassifier.DEFAULT_THRESHOLD_HZ, SpeakerClassifier.genderThreshold(listOf(100.0, 105.0)))
+    }
+
+    @Test fun analysingRolesFindsTwoPeopleWithDifferentSuggestedVoices() = runBlocking {
+        chatReply = { labelByPitch(it) ?: translationsFor(it) }
+        val v = twoVoiceVideo("roles.mp4")
+        val roles = pipeline(config = DubbingConfig(voice = "f-main", maleVoice = "m-main"), withLabeler = true)
+            .analyzeRoles(v, srt(200, 3200, lengthMs = 2600, name = "roles.en.srt"), File(dir, "work-roles"))
+        assertEquals(listOf("S1", "S2"), roles.map { it.id })
+        assertEquals(listOf("M", "F"), roles.map { it.gender })
+        assertEquals(listOf("m-main", "f-main"), roles.map { it.voice })
+        assertTrue(roles[0].samples.single().startsWith("这是第"), "samples are the translated lines: ${roles[0].samples}")
+        assertTrue(File(dir, "work-roles/roles.json").exists())
+    }
+
+    @Test fun dubbingUsesTheVoiceChosenForEachPerson() = runBlocking {
+        chatReply = { labelByPitch(it) ?: translationsFor(it) }
+        val v = twoVoiceVideo("roles2.mp4")
+        val work = File(dir, "work-roles2")
+        val sub = srt(200, 3200, lengthMs = 2600, name = "roles2.en.srt")
+        val config = DubbingConfig(voice = "f-main", maleVoice = "m-main", llmRoles = true, roleVoices = mapOf("S1" to "picked-for-S1"))
+        pipeline(config = config, withLabeler = true).analyzeRoles(v, sub, work)
+        val chatBefore = chatCalls.get()
+
+        val tts = ToneTts()
+        pipeline(tts, config = config, withLabeler = true).run(v, sub, work, File(dir, "out/roles2.zh.mp4"))
+        val byText = tts.calls.associate { it.text to it.voice }
+        assertEquals("picked-for-S1", byText["这是第1句话"])
+        assertEquals("f-main", byText["这是第2句话"], "S2 keeps the suggested voice")
+        assertEquals(chatBefore, chatCalls.get(), "analysis was checkpointed: no more model calls")
+    }
+
+    @Test fun speakerIdsStayConsistentAcrossWindows() = runBlocking {
+        val chat = FakeChat { r ->
+            val user = Json.parseToJsonElement(r.messages.last().content).jsonObject
+            val rows = user["lines"]!!.jsonArray.joinToString(",") { """{"id":${it.jsonObject["id"]!!.jsonPrimitive.content},"spk":"S1"}""" }
+            """{"speakers":[$rows],"roster":{"S1":"the host, male"}}"""
+        }
+        val cues = (1..5).map { Cue(it, it * 1000L, it * 1000L + 800, "Line $it") }
+        val labeling = SpeakerLabeler(chat, "m", windowSize = 2).label(cues, List(5) { "M" }, 3)
+        assertEquals(List(5) { "S1" }, labeling.labels)
+        assertEquals(3, chat.requests.size)
+        val second = Json.parseToJsonElement(chat.requests[1].messages.last().content).jsonObject
+        assertEquals("the host, male", second["known_speakers"]!!.jsonObject["S1"]!!.jsonPrimitive.content)
+        assertEquals(2, second["previous"]!!.jsonArray.size)
+    }
+
+    @Test fun extraSpeakersAreMergedIntoTheClosestVoice() {
+        val cues = (1..6).map { Cue(it, it * 1000L, it * 1000L + 800, "x", "译$it") }
+        val labeling = Labeling(listOf("A", "A", "B", "B", "C", "A"), mapOf("A" to "", "B" to "", "C" to ""))
+        val f0s: List<Double?> = listOf(110.0, 112.0, 215.0, 220.0, 118.0, 111.0)
+        val (labels, roles) = RoleBuilder.build(cues, labeling, f0s, 165.0, maxSpeakers = 2, voices = VoicePool("f", "m"))
+        assertEquals(2, roles.size)
+        assertEquals(listOf("S1", "S1", "S2", "S2", "S1", "S1"), labels, "C (118 Hz) joins the low voice A")
+        assertEquals(listOf("M", "F"), roles.map { it.gender })
     }
 
     @Test fun subtitleToDubbedVideoEndToEnd() = runBlocking {
