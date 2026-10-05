@@ -34,6 +34,10 @@ import java.io.File
 object DubbingSettingsModule : SettingModule {
     private val AZURE_KEYS = listOf(DubbingPrefs.AZURE_REGION, DubbingPrefs.AZURE_KEY)
     private val OPENAI_TTS_KEYS = listOf(DubbingPrefs.TTS_BASE_URL, DubbingPrefs.TTS_API_KEY, DubbingPrefs.TTS_MODEL)
+    private val VALUE_SHOWN_KEYS = setOf(
+        DubbingPrefs.ASR_BASE_URL, DubbingPrefs.TTS_BASE_URL, DubbingPrefs.VOICE_CUSTOM,
+        DubbingPrefs.LLM_EXTRA_BODY, DubbingPrefs.EXTRA_PROMPT, DubbingPrefs.GLOSSARY,
+    )
     private val VOICE_KEYS = listOf(DubbingPrefs.VOICE, DubbingPrefs.VOICE_CUSTOM)
 
     override fun bindLogic(pref: Preference, host: SettingHost) {
@@ -45,6 +49,15 @@ object DubbingSettingsModule : SettingModule {
             pref.summaryProvider = Preference.SummaryProvider<EditTextPreference> {
                 val v = it.text.orEmpty()
                 if (v.isEmpty()) context.getString(R.string.dubbing_not_set) else "••••••" + v.takeLast(4)
+            }
+        }
+
+        // Fields that carry an explanatory summary must still show what was entered, or they look empty
+        if (pref is EditTextPreference && pref.key in VALUE_SHOWN_KEYS && !DubbingPrefs.isSecret(pref.key)) {
+            val hint = pref.summary
+            pref.summaryProvider = Preference.SummaryProvider<EditTextPreference> {
+                val v = it.text.orEmpty().trim().replace(Regex("\\s+"), " ")
+                if (v.isEmpty()) hint else if (v.length > 80) v.take(80) + "…" else v
             }
         }
 
