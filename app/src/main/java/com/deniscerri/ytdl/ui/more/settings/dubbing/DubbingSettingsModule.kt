@@ -60,6 +60,7 @@ object DubbingSettingsModule : SettingModule {
                             (host.findPref(DubbingPrefs.LLM_MODEL) as? EditTextPreference)?.text = preset.defaultModel
                         }
                         (host.findPref(DubbingPrefs.LLM_CONCURRENCY) as? ListPreference)?.value = preset.concurrency.toString()
+                        (host.findPref(DubbingPrefs.LLM_EXTRA_BODY) as? EditTextPreference)?.text = preset.extraBody
                     }
                     true
                 }

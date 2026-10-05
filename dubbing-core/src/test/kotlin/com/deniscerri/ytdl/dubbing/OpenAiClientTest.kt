@@ -49,6 +49,22 @@ class OpenAiClientTest {
     }
 
     @Test
+    fun extraRequestParametersAreMergedAndBadJsonIsIgnored() = runBlocking {
+        server.enqueue(ok("""{"choices":[{"message":{"content":"x"}}]}"""))
+        val c = OpenAiCompatClient(server.url("/v1").toString(), "k", extraBodyJson = """{"thinking":{"type":"disabled"},"reasoning_effort":"low"}""")
+        c.chat(ChatRequest("m", listOf(ChatMessage("user", "hi"))))
+        val body = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+        assertEquals("disabled", body["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertEquals("low", body["reasoning_effort"]!!.jsonPrimitive.content)
+
+        val logs = mutableListOf<String>()
+        server.enqueue(ok("""{"choices":[{"message":{"content":"y"}}]}"""))
+        OpenAiCompatClient(server.url("/v1").toString(), "k", log = { logs += it }, extraBodyJson = "not json")
+            .chat(ChatRequest("m", listOf(ChatMessage("user", "hi"))))
+        assertTrue(logs.any { it.contains("not a valid JSON") }, logs.toString())
+    }
+
+    @Test
     fun dailyQuotaIsNotRetried() = runBlocking {
         server.enqueue(MockResponse.Builder().code(429).body("""{"error":{"message":"Rate limit exceeded: free-models-per-day"}}""").build())
         val e = assertFailsWith<ApiException> { client().chat(ChatRequest("m", listOf(ChatMessage("user", "hi")))) }

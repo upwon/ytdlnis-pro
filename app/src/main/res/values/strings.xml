@@ -639,7 +639,7 @@
     <string name="dubbing_asr_category">Speech recognition (videos without subtitles)</string>
     <string name="dubbing_asr_enabled">Use speech recognition</string>
     <string name="dubbing_asr_enabled_summary">Transcribe the audio when no English subtitles exist (OpenAI-compatible /audio/transcriptions, for example Groq Whisper)</string>
-    <string name="dubbing_asr_base_url_summary">Empty = same as the translation service</string>
+    <string name="dubbing_asr_base_url_summary">Empty: with an own key here → Groq; without → the translation service</string>
     <string name="dubbing_output_category">Output</string>
     <string name="dubbing_keep_original">Keep the original audio track</string>
     <string name="dubbing_keep_original_summary">The Chinese dub is the default track, the original stays selectable in the player</string>
@@ -751,4 +751,6 @@
     <string name="dubbing_keep_terms_summary">Leave common terms such as agent, prompt, token, API, LLM, PR in English instead of translating them</string>
     <string name="dubbing_extra_prompt">Extra translation instructions</string>
     <string name="dubbing_extra_prompt_summary">Added to the translation prompt, e.g. the topic of the video, the tone you want, names to keep. Leave empty for the default.</string>
+    <string name="dubbing_extra_body">Advanced: extra request parameters (JSON)</string>
+    <string name="dubbing_extra_body_summary">Merged into every translation request. Used to switch off the slow “thinking” of reasoning models, e.g. {"thinking":{"type":"disabled"}} for Zhipu. Set automatically by the provider presets; leave empty if unsure.</string>
 </resources>

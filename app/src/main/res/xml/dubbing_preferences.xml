@@ -35,6 +35,13 @@
             app:title="@string/dubbing_model"
             app:useSimpleSummaryProvider="true" />
 
+        <EditTextPreference
+            app:icon="@drawable/ic_edit"
+            app:key="dubbing_llm_extra_body"
+            app:defaultValue=""
+            app:summary="@string/dubbing_extra_body_summary"
+            app:title="@string/dubbing_extra_body" />
+
         <ListPreference
             app:icon="@drawable/baseline_settings_suggest_24"
             app:key="dubbing_llm_concurrency"

@@ -33,13 +33,20 @@ class DubbingFactory(private val context: Context) {
 
     fun llmClient(log: (String) -> Unit = {}): OpenAiCompatClient {
         val base = str(DubbingPrefs.LLM_BASE_URL)
-        return OpenAiCompatClient(base, str(DubbingPrefs.LLM_API_KEY), extraHeaders = headersFor(base), log = log)
+        return OpenAiCompatClient(
+            base, str(DubbingPrefs.LLM_API_KEY), extraHeaders = headersFor(base), log = log,
+            extraBodyJson = str(DubbingPrefs.LLM_EXTRA_BODY),
+        )
     }
 
     private fun asrProvider(): OpenAiCompatAsr? {
         if (!prefs.getBoolean(DubbingPrefs.ASR_ENABLED, false)) return null
-        val base = str(DubbingPrefs.ASR_BASE_URL).ifEmpty { str(DubbingPrefs.LLM_BASE_URL) }
-        val key = str(DubbingPrefs.ASR_API_KEY).ifEmpty { str(DubbingPrefs.LLM_API_KEY) }
+        // an own key without an address almost always means Groq (the free Whisper); never send it to the translation service
+        val ownKey = str(DubbingPrefs.ASR_API_KEY)
+        val base = str(DubbingPrefs.ASR_BASE_URL).ifEmpty {
+            if (ownKey.isNotEmpty()) "https://api.groq.com/openai/v1" else str(DubbingPrefs.LLM_BASE_URL)
+        }
+        val key = ownKey.ifEmpty { str(DubbingPrefs.LLM_API_KEY) }
         val model = str(DubbingPrefs.ASR_MODEL, "whisper-large-v3-turbo").ifEmpty { "whisper-large-v3-turbo" }
         if (base.isEmpty()) return null
         return OpenAiCompatAsr(OpenAiCompatClient(base, key, extraHeaders = headersFor(base)), model)

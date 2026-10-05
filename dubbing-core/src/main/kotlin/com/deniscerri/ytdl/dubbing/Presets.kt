@@ -7,6 +7,8 @@ data class LlmPreset(
     val defaultModel: String = "",
     /** Requests sent at the same time; free tiers often allow only one. */
     val concurrency: Int = 2,
+    /** JSON merged into every request: switches off the slow "thinking" of reasoning models. */
+    val extraBody: String = "",
 )
 
 object Presets {
@@ -14,12 +16,12 @@ object Presets {
         LlmPreset("OpenRouter", "https://openrouter.ai/api/v1"),
         LlmPreset("DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat"),
         LlmPreset("阿里云百炼 (通义千问)", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
-        LlmPreset("智谱 GLM（Flash 系列免费，1 并发）", "https://open.bigmodel.cn/api/paas/v4", "glm-4.7-flash", concurrency = 1),
+        LlmPreset("智谱 GLM（Flash 系列免费，1 并发）", "https://open.bigmodel.cn/api/paas/v4", "glm-4.7-flash", concurrency = 1, extraBody = """{"thinking":{"type":"disabled"}}"""),
         LlmPreset("Kimi (Moonshot)", "https://api.moonshot.cn/v1", "moonshot-v1-8k"),
         LlmPreset("硅基流动 SiliconFlow（小模型免费）", "https://api.siliconflow.cn/v1", "Qwen/Qwen2.5-7B-Instruct"),
         LlmPreset("火山方舟 (豆包)", "https://ark.cn-beijing.volces.com/api/v3"),
         LlmPreset("OpenAI", "https://api.openai.com/v1", "gpt-4o-mini"),
-        LlmPreset("Groq（免费，也提供 Whisper 语音识别）", "https://api.groq.com/openai/v1", "openai/gpt-oss-120b"),
+        LlmPreset("Groq（免费，也提供 Whisper 语音识别）", "https://api.groq.com/openai/v1", "openai/gpt-oss-120b", extraBody = """{"reasoning_effort":"low"}"""),
         LlmPreset("OpenCode Zen", "https://opencode.ai/zen/v1"),
         LlmPreset("Gemini (OpenAI 兼容)", "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash"),
         LlmPreset("Ollama (本机/局域网)", "http://127.0.0.1:11434/v1"),

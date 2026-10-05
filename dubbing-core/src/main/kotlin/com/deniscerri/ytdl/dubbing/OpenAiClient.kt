@@ -75,7 +75,18 @@ class OpenAiCompatClient(
     private val chatTimeoutSeconds: Long = 150,
     /** Receives one line per request outcome (reply head, HTTP error, timeout, retry) for the app's details view. */
     private val log: (String) -> Unit = {},
+    /**
+     * Extra JSON fields merged into every chat request, e.g. {"thinking":{"type":"disabled"}} (Zhipu) or
+     * {"reasoning_effort":"low"} (gpt-oss): reasoning models otherwise "think" for minutes before answering.
+     */
+    extraBodyJson: String = "",
 ) : ChatClient {
+    private val extraBody: JsonObject? = extraBodyJson.trim().takeIf { it.isNotEmpty() }?.let {
+        runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull().also { parsed ->
+            if (parsed == null) log("The extra request parameters are not a valid JSON object and are ignored")
+        }
+    }
+
     private val base = baseUrl.trim().trimEnd('/')
     private val json = Json { ignoreUnknownKeys = true }
     private val jsonType = "application/json; charset=utf-8".toMediaType()
@@ -110,6 +121,7 @@ class OpenAiCompatClient(
             request.temperature?.let { put("temperature", it) }
             request.maxTokens?.let { put("max_tokens", it) }
             if (request.jsonMode) put("response_format", buildJsonObject { put("type", "json_object") })
+            extraBody?.forEach { (k, v) -> put(k, v) }
         }
         val call = http.newCall(request("/chat/completions").post(body.toString().toRequestBody(jsonType)).build())
         call.timeout().timeout(chatTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)

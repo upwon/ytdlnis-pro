@@ -640,7 +640,7 @@
     <string name="dubbing_asr_category">语音识别（用于没有字幕的视频）</string>
     <string name="dubbing_asr_enabled">启用语音识别</string>
     <string name="dubbing_asr_enabled_summary">没有英文字幕时转写音频（OpenAI 兼容的 /audio/transcriptions，例如 Groq Whisper）</string>
-    <string name="dubbing_asr_base_url_summary">留空则与翻译服务相同</string>
+    <string name="dubbing_asr_base_url_summary">留空：这里填了密钥 → 默认用 Groq；没填 → 沿用翻译服务</string>
     <string name="dubbing_output_category">输出</string>
     <string name="dubbing_keep_original">保留原音轨</string>
     <string name="dubbing_keep_original_summary">中文配音为默认音轨，原音轨仍可在播放器中切换</string>
@@ -752,4 +752,6 @@
     <string name="dubbing_keep_terms_summary">agent、prompt、token、API、LLM、PR 这类常用术语直接保留英文，不硬译</string>
     <string name="dubbing_extra_prompt">额外的翻译要求</string>
     <string name="dubbing_extra_prompt_summary">会追加到翻译提示词里，例如视频的主题、想要的语气、要保留的名字。留空则用默认提示词。</string>
+    <string name="dubbing_extra_body">高级：额外的请求参数（JSON）</string>
+    <string name="dubbing_extra_body_summary">会合并进每次翻译请求，用来关掉推理模型很慢的“思考”，例如智谱：{"thinking":{"type":"disabled"}}。选服务商预设时会自动填好，不确定就留空。</string>
 </resources>
