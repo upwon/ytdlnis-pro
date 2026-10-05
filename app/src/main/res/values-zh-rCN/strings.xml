@@ -748,4 +748,8 @@
     <string name="dubbing_cancel">取消</string>
     <string name="dubbing_concurrency">同时翻译的请求数</string>
     <string name="dubbing_concurrency_summary">免费套餐常常只允许同时 1 个（选择服务商时会自动设好）。遇到限速报错时调低。</string>
+    <string name="dubbing_keep_terms">保留英文专业术语</string>
+    <string name="dubbing_keep_terms_summary">agent、prompt、token、API、LLM、PR 这类常用术语直接保留英文，不硬译</string>
+    <string name="dubbing_extra_prompt">额外的翻译要求</string>
+    <string name="dubbing_extra_prompt_summary">会追加到翻译提示词里，例如视频的主题、想要的语气、要保留的名字。留空则用默认提示词。</string>
 </resources>

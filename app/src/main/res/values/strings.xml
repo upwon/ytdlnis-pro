@@ -747,4 +747,8 @@
     <string name="dubbing_cancel">Cancel</string>
     <string name="dubbing_concurrency">Simultaneous translation requests</string>
     <string name="dubbing_concurrency_summary">Free plans often allow only 1 at a time (set automatically when you pick a provider). Lower it if you see rate-limit errors.</string>
+    <string name="dubbing_keep_terms">Keep English tech terms</string>
+    <string name="dubbing_keep_terms_summary">Leave common terms such as agent, prompt, token, API, LLM, PR in English instead of translating them</string>
+    <string name="dubbing_extra_prompt">Extra translation instructions</string>
+    <string name="dubbing_extra_prompt_summary">Added to the translation prompt, e.g. the topic of the video, the tone you want, names to keep. Leave empty for the default.</string>
 </resources>

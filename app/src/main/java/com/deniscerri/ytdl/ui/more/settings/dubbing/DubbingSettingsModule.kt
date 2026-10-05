@@ -205,8 +205,15 @@ object DubbingSettingsModule : SettingModule {
         host.hostLifecycleOwner.lifecycleScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    LlmTranslator(factory.llmClient(), model)
-                        .translate(listOf(Cue(1, 0, 3000, "Hello, and welcome back to the channel!")))
+                    LlmTranslator(
+                        factory.llmClient(), model,
+                        com.deniscerri.ytdl.dubbing.TranslatorConfig(
+                            keepEnglishTerms = PreferenceManager.getDefaultSharedPreferences(context).getBoolean(DubbingPrefs.KEEP_TERMS, true),
+                            extraSystemPrompt = PreferenceManager.getDefaultSharedPreferences(context).getString(DubbingPrefs.EXTRA_PROMPT, "").orEmpty(),
+                            glossary = PreferenceManager.getDefaultSharedPreferences(context).getString(DubbingPrefs.GLOSSARY, "").orEmpty(),
+                        ),
+                    )
+                        .translate(listOf(Cue(1, 0, 4500, "So, you know, the agent calls the API, and then we just merge the PR.")))
                         .first().zh
                 }
             }

@@ -56,6 +56,21 @@
             app:summary="@string/dubbing_test_llm_summary"
             app:title="@string/dubbing_test_llm" />
 
+        <SwitchPreferenceCompat
+            android:widgetLayout="@layout/preferece_material_switch"
+            app:defaultValue="true"
+            app:icon="@drawable/ic_textformat"
+            app:key="dubbing_keep_terms"
+            app:summary="@string/dubbing_keep_terms_summary"
+            app:title="@string/dubbing_keep_terms" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_edit"
+            app:key="dubbing_extra_prompt"
+            app:defaultValue=""
+            app:summary="@string/dubbing_extra_prompt_summary"
+            app:title="@string/dubbing_extra_prompt" />
+
         <EditTextPreference
             app:icon="@drawable/ic_textformat"
             app:key="dubbing_glossary"

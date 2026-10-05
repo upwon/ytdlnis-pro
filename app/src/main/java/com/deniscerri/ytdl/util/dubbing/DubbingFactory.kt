@@ -142,6 +142,8 @@ class DubbingFactory(private val context: Context) {
             model = str(DubbingPrefs.LLM_MODEL),
             config = TranslatorConfig(
                 glossary = str(DubbingPrefs.GLOSSARY),
+                keepEnglishTerms = prefs.getBoolean(DubbingPrefs.KEEP_TERMS, true),
+                extraSystemPrompt = str(DubbingPrefs.EXTRA_PROMPT),
                 concurrency = (str(DubbingPrefs.LLM_CONCURRENCY, "2").toIntOrNull() ?: 2).coerceIn(1, 3),
             ),
             log = log,

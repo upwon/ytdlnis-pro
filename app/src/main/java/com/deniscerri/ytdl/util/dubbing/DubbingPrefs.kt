@@ -37,6 +37,8 @@ object DubbingPrefs {
     const val REPLACE_ORIGINAL = "dubbing_replace_original"
     const val AUTO = "dubbing_auto"
     const val GLOSSARY = "dubbing_glossary"
+    const val KEEP_TERMS = "dubbing_keep_terms"
+    const val EXTRA_PROMPT = "dubbing_extra_prompt"
 
     const val ENGINE_EDGE = "edge"
     const val ENGINE_AZURE = "azure"

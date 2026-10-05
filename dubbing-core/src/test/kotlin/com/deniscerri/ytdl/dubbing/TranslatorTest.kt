@@ -91,4 +91,16 @@ class TranslatorTest {
         val out = LlmTranslator(chat, "m", TranslatorConfig(batchSize = 3, concurrency = 4)).translate(cues(25))
         assertEquals((1..25).map { "译文$it:Senten" }, out.map { it.zh })
     }
+
+    @Test
+    fun promptKeepsEnglishTermsAndAsksForNaturalChinese() {
+        val p = LlmTranslator(FakeChat { "" }, "m", TranslatorConfig(glossary = "pstack=pstack", extraSystemPrompt = "视频讲软件工厂。")).systemPrompt()
+        assertTrue(p.contains("信、达、雅"))
+        assertTrue(p.contains("agent") && p.contains("保留英文原文"), "tech terms stay in English by default")
+        assertTrue(p.contains("pstack=pstack"))
+        assertTrue(p.contains("视频讲软件工厂。"))
+        val off = LlmTranslator(FakeChat { "" }, "m", TranslatorConfig(keepEnglishTerms = false)).systemPrompt()
+        assertTrue(!off.contains("保留英文原文"), "the option switches the rule off")
+        assertTrue(off.contains("通用的中文译名"))
+    }
 }
