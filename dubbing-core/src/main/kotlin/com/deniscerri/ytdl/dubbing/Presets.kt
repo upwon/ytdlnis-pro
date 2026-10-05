@@ -19,7 +19,7 @@ object Presets {
         LlmPreset("硅基流动 SiliconFlow（小模型免费）", "https://api.siliconflow.cn/v1", "Qwen/Qwen2.5-7B-Instruct"),
         LlmPreset("火山方舟 (豆包)", "https://ark.cn-beijing.volces.com/api/v3"),
         LlmPreset("OpenAI", "https://api.openai.com/v1", "gpt-4o-mini"),
-        LlmPreset("Groq (免费额度大，也提供 Whisper)", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
+        LlmPreset("Groq（免费，也提供 Whisper 语音识别）", "https://api.groq.com/openai/v1", "openai/gpt-oss-120b"),
         LlmPreset("OpenCode Zen", "https://opencode.ai/zen/v1"),
         LlmPreset("Gemini (OpenAI 兼容)", "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash"),
         LlmPreset("Ollama (本机/局域网)", "http://127.0.0.1:11434/v1"),
