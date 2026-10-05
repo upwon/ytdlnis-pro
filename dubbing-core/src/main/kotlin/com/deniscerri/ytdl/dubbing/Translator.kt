@@ -143,9 +143,12 @@ class LlmTranslator(
                 })
             }
         }
+        val last = indices.last()
+        val following = ((last + 1)..(last + 2)).filter { it < all.size }.map { all[it].src }
         val user = buildJsonObject {
             put("context", buildJsonArray { context.forEach { add(JsonPrimitive(it)) } })
             put("items", items)
+            put("following", buildJsonArray { following.forEach { add(JsonPrimitive(it)) } })
         }.toString()
 
         val reply = client.chat(
@@ -159,7 +162,7 @@ class LlmTranslator(
         val byId = parseTranslations(reply.content)
         val out = LinkedHashMap<Int, String>()
         for (i in indices) {
-            val zh = byId[all[i].id]?.trim().orEmpty()
+            val zh = tidyEllipsis(all[i].src, byId[all[i].id]?.trim().orEmpty())
             if (zh.isNotEmpty()) out[i] = zh
         }
         if (out.size < indices.size) {
@@ -179,12 +182,13 @@ class LlmTranslator(
     private fun systemPrompt(): String = buildString {
         append("你是专业的视频配音翻译。把用户给出的${config.sourceLanguage}字幕逐条翻译成自然、口语化的简体中文，译文将被直接朗读配音。\n")
         append("规则：\n")
-        append("1. 只翻译 items 里每条的 \"en\" 字段；context 仅供理解上下文，不要翻译，也不要输出。\n")
+        append("1. 只翻译 items 里每条的 \"en\" 字段；context（前文）和 following（后文）仅供理解上下文，不要翻译，也不要输出。\n")
         append("2. 译文要适合朗读：不要括号注释、表情符号或 Markdown；数字、单位按中文口语习惯书写。\n")
         append("3. 译文汉字数尽量不超过该条的 \"max_chars\"，必要时意译、精简，但不能丢失关键信息。\n")
         append("4. 人名、术语前后保持一致；没有通用译名的专有名词可保留原文。\n")
         append("5. 不要合并或拆分条目，每个 id 必须恰好有一条译文。\n")
-        append("6. 只输出 JSON，格式严格为 {\"translations\":[{\"id\":1,\"zh\":\"译文\"}]}，不要输出任何其他文字。\n")
+        append("6. 字幕常在句子中间被切开：某条没有说完时，照原意顺畅地翻出这半句，结尾不要加省略号（……、...）或破折号来表示未完，更不要自己补全后文。\n")
+        append("7. 只输出 JSON，格式严格为 {\"translations\":[{\"id\":1,\"zh\":\"译文\"}]}，不要输出任何其他文字。\n")
         if (config.glossary.isNotBlank()) append("术语表（必须遵守）：\n${config.glossary.trim()}\n")
         if (config.extraSystemPrompt.isNotBlank()) append(config.extraSystemPrompt.trim()).append('\n')
     }
@@ -193,6 +197,14 @@ class LlmTranslator(
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
         private val THINK = Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL)
         private val FENCE = Regex("```[a-zA-Z]*")
+
+        private val TRAILING_ELLIPSIS = Regex("""(?:…+|\.{2,}|。{2,})[\s"'”’)）]*$""")
+
+        /** Models like to trail off with "……" on a cut-off line. Keep it only when the English itself trails off. */
+        internal fun tidyEllipsis(src: String, zh: String): String {
+            if (zh.isEmpty() || TRAILING_ELLIPSIS.containsMatchIn(src.trimEnd())) return zh
+            return zh.replace(TRAILING_ELLIPSIS, "").trimEnd('，', ',', '、', ' ').ifEmpty { zh }
+        }
 
         /** Accepts `{"translations":[...]}`, a bare array, or an `{"1":"..."}` map; tolerates fences and <think> blocks. */
         fun parseTranslations(content: String): Map<Int, String> {

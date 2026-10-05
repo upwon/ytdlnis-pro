@@ -14,6 +14,8 @@ data class Cue(
     val ttsFile: String? = null,
     /** "M" or "F" when voices are assigned per speaker (guessed from the pitch of the original audio); blank = unknown. */
     val speaker: String = "",
+    /** The subtitle marked a change of speaker here (">>" or a leading dash) - the best clue for "who speaks". */
+    val turn: Boolean = false,
 ) {
     val durationMs: Long get() = endMs - startMs
 }

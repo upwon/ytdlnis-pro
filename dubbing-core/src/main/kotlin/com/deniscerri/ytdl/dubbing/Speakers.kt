@@ -4,11 +4,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
@@ -75,6 +79,174 @@ object PitchEstimator {
     }
 }
 
+/** What was measured of one line of speech: pitch and the average spectrum shape ("timbre" of the voice and the mic). */
+class VoiceSample(val f0: Double?, val spectrum: DoubleArray?)
+
+/**
+ * Long-term average spectrum of a stretch of speech in 16 log-spaced bands, loudness removed. Two people on different
+ * microphones / rooms - or just with different voices - leave clearly different fingerprints, even at the same pitch.
+ */
+object VoiceFingerprint {
+    const val BANDS = 16
+    private const val N = 512
+    private const val HOP = 256
+    private const val MAX_FRAMES = 24
+    private val window = DoubleArray(N) { 0.5 - 0.5 * cos(2 * PI * it / (N - 1)) }
+    private val edges: IntArray = run {
+        val binHz = PitchEstimator.SAMPLE_RATE.toDouble() / N
+        val e = IntArray(BANDS + 1)
+        for (i in 0..BANDS) e[i] = (100.0 * (3800.0 / 100.0).pow(i.toDouble() / BANDS) / binHz).toInt()
+        for (i in 1..BANDS) if (e[i] <= e[i - 1]) e[i] = e[i - 1] + 1
+        e
+    }
+
+    fun of(pcm: ShortArray): DoubleArray? {
+        if (pcm.size < N * 2) return null
+        val starts = (0..(pcm.size - N) step HOP).toList()
+        val energy = starts.map { s -> sqrt((s until s + N).sumOf { pcm[it].toDouble() * pcm[it] } / N) }
+        val sorted = energy.sorted()
+        val gate = max(150.0, sorted[(sorted.size * 0.9).toInt().coerceAtMost(sorted.size - 1)] * 0.3)
+        val loud = starts.filterIndexed { i, _ -> energy[i] >= gate }
+        if (loud.size < 3) return null
+        val picked = if (loud.size <= MAX_FRAMES) loud else List(MAX_FRAMES) { loud[it * loud.size / MAX_FRAMES] }
+        val acc = DoubleArray(BANDS)
+        val re = DoubleArray(N)
+        val im = DoubleArray(N)
+        for (start in picked) {
+            for (i in 0 until N) { re[i] = pcm[start + i] * window[i]; im[i] = 0.0 }
+            fft(re, im)
+            for (b in 0 until BANDS) {
+                var p = 0.0
+                for (k in edges[b] until minOf(edges[b + 1], N / 2)) p += re[k] * re[k] + im[k] * im[k]
+                acc[b] += kotlin.math.log10(1e-6 + p / (edges[b + 1] - edges[b]))
+            }
+        }
+        val mean = acc.map { it / picked.size }
+        val avg = mean.average()
+        return DoubleArray(BANDS) { mean[it] - avg }
+    }
+
+    private fun fft(re: DoubleArray, im: DoubleArray) {
+        val n = re.size
+        var j = 0
+        for (i in 1 until n) {
+            var bit = n shr 1
+            while (j and bit != 0) { j = j xor bit; bit = bit shr 1 }
+            j = j xor bit
+            if (i < j) { val tr = re[i]; re[i] = re[j]; re[j] = tr; val ti = im[i]; im[i] = im[j]; im[j] = ti }
+        }
+        var len = 2
+        while (len <= n) {
+            val ang = -2 * PI / len
+            val wr = cos(ang)
+            val wi = sin(ang)
+            var i = 0
+            while (i < n) {
+                var cr = 1.0
+                var ci = 0.0
+                for (k in 0 until len / 2) {
+                    val ur = re[i + k]; val ui = im[i + k]
+                    val vr = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci
+                    val vi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr
+                    re[i + k] = ur + vr; im[i + k] = ui + vi
+                    re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi
+                    val nr = cr * wr - ci * wi
+                    ci = cr * wi + ci * wr
+                    cr = nr
+                }
+                i += len
+            }
+            len = len shl 1
+        }
+    }
+}
+
+/** Groups lines by voice (k-means on the fingerprint + pitch) and says whether the groups are real or just noise. */
+object VoiceClusterer {
+    private const val MIN_SILHOUETTE = 0.25
+    private const val MIN_SHARE = 0.12
+
+    /** Cluster index per line (0 = the voice heard first), null for lines without a clear voice; null overall = one voice. */
+    fun cluster(samples: List<VoiceSample?>, maxK: Int): List<Int?>? {
+        val idx = samples.indices.filter { samples[it]?.spectrum != null }
+        if (idx.size < 8 || maxK < 2) return null
+        val dims = VoiceFingerprint.BANDS + 1
+        val raw = idx.map { i ->
+            val s = samples[i]!!
+            DoubleArray(dims) { d -> if (d < VoiceFingerprint.BANDS) s.spectrum!![d] else s.f0?.let { ln(it) } ?: Double.NaN }
+        }
+        // fill missing pitch with the mean, then z-score every dimension
+        val x = Array(raw.size) { DoubleArray(dims) }
+        for (d in 0 until dims) {
+            val vals = raw.map { it[d] }.filter { !it.isNaN() }
+            val mean = if (vals.isEmpty()) 0.0 else vals.average()
+            val sd = sqrt(vals.sumOf { (it - mean) * (it - mean) } / max(1, vals.size)).coerceAtLeast(1e-6)
+            val weight = if (d == dims - 1) 1.5 else 1.0
+            for (r in raw.indices) x[r][d] = ((if (raw[r][d].isNaN()) mean else raw[r][d]) - mean) / sd * weight
+        }
+        var best: IntArray? = null
+        var bestScore = -1.0
+        for (k in 2..min(maxK, 4)) {
+            val assign = kmeans(x, k)
+            val sizes = IntArray(k).also { a -> assign.forEach { a[it]++ } }
+            if (sizes.any { it < MIN_SHARE * x.size }) continue
+            val score = silhouette(x, assign, k)
+            if (score > bestScore) { bestScore = score; best = assign }
+        }
+        val chosen = best ?: return null
+        if (bestScore < MIN_SILHOUETTE) return null
+        // number the voices in the order they are first heard
+        val order = LinkedHashMap<Int, Int>()
+        chosen.forEach { if (it !in order) order[it] = order.size }
+        val out = MutableList<Int?>(samples.size) { null }
+        idx.forEachIndexed { n, i -> out[i] = order.getValue(chosen[n]) }
+        return out
+    }
+
+    private fun dist2(a: DoubleArray, b: DoubleArray): Double { var s = 0.0; for (i in a.indices) { val d = a[i] - b[i]; s += d * d }; return s }
+
+    private fun kmeans(x: Array<DoubleArray>, k: Int): IntArray {
+        val dims = x[0].size
+        val mean = DoubleArray(dims) { d -> x.sumOf { it[d] } / x.size }
+        // farthest-first initialisation: deterministic, no unlucky seeds
+        val centers = ArrayList<DoubleArray>()
+        centers += x.maxByOrNull { dist2(it, mean) }!!.copyOf()
+        while (centers.size < k) centers += x.maxByOrNull { p -> centers.minOf { dist2(p, it) } }!!.copyOf()
+        val assign = IntArray(x.size)
+        repeat(40) {
+            var changed = false
+            for (i in x.indices) {
+                val c = centers.indices.minByOrNull { dist2(x[i], centers[it]) }!!
+                if (c != assign[i]) { assign[i] = c; changed = true }
+            }
+            for (c in centers.indices) {
+                val members = x.indices.filter { assign[it] == c }
+                if (members.isNotEmpty()) for (d in 0 until dims) centers[c][d] = members.sumOf { x[it][d] } / members.size
+            }
+            if (!changed && it > 0) return assign
+        }
+        return assign
+    }
+
+    private fun silhouette(x: Array<DoubleArray>, assign: IntArray, k: Int): Double {
+        val step = max(1, x.size / 300)
+        var total = 0.0
+        var n = 0
+        for (i in x.indices step step) {
+            val sums = DoubleArray(k)
+            val counts = IntArray(k)
+            for (j in x.indices) if (j != i) { sums[assign[j]] += sqrt(dist2(x[i], x[j])); counts[assign[j]]++ }
+            val own = assign[i]
+            if (counts[own] == 0) continue
+            val a = sums[own] / counts[own]
+            val b = (0 until k).filter { it != own && counts[it] > 0 }.minOfOrNull { sums[it] / counts[it] } ?: continue
+            total += (b - a) / max(a, b)
+            n++
+        }
+        return if (n == 0) -1.0 else total / n
+    }
+}
+
 class SpeakerClassifier(
     private val ffmpeg: FfmpegRunner,
     private val log: (String) -> Unit = {},
@@ -90,7 +262,11 @@ class SpeakerClassifier(
     }
 
     /** Median pitch (Hz) of every line, null where the voice is unclear; null overall when the audio cannot be read. */
-    suspend fun measure(video: File, cues: List<Cue>, workDir: File): List<Double?>? {
+    suspend fun measure(video: File, cues: List<Cue>, workDir: File): List<Double?>? =
+        analyze(video, cues, workDir)?.map { it?.f0 }
+
+    /** Pitch and spectrum fingerprint of every line (one pass over the audio). */
+    suspend fun analyze(video: File, cues: List<Cue>, workDir: File): List<VoiceSample?>? {
         if (cues.isEmpty()) return null
         workDir.mkdirs()
         val pcm = File(workDir, "pitch.pcm")
@@ -100,13 +276,13 @@ class SpeakerClassifier(
             return null
         }
         try {
-            return withContext(Dispatchers.IO) { RandomAccessFile(pcm, "r").use { f -> cues.map { cueF0(f, it) } } }
+            return withContext(Dispatchers.IO) { RandomAccessFile(pcm, "r").use { f -> cues.map { cueSample(f, it) } } }
         } finally {
             pcm.delete()
         }
     }
 
-    private fun cueF0(f: RandomAccessFile, cue: Cue): Double? {
+    private fun cueSample(f: RandomAccessFile, cue: Cue): VoiceSample? {
         val rate = PitchEstimator.SAMPLE_RATE
         val from = (cue.startMs * rate / 1000).coerceAtLeast(0)
         val spanMs = min(cue.durationMs, 8_000L)
@@ -118,7 +294,9 @@ class SpeakerClassifier(
         if (n < 2) return null
         val count = n / 2
         val pcm = ShortArray(count) { ((bytes[it * 2 + 1].toInt() shl 8) or (bytes[it * 2].toInt() and 0xFF)).toShort() }
-        return PitchEstimator.medianF0(pcm)
+        val f0 = PitchEstimator.medianF0(pcm)
+        val spectrum = VoiceFingerprint.of(pcm)
+        return if (f0 == null && spectrum == null) null else VoiceSample(f0, spectrum)
     }
 
     companion object {

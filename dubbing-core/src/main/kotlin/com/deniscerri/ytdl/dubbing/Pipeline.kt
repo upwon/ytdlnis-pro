@@ -178,13 +178,16 @@ class DubbingPipeline(
         val labeler = labeler ?: throw DubbingException("Multi-role dubbing needs a translation service for the speaker labels")
         log("Measuring the pitch of every voice")
         onPreview("Measuring the pitch of every voice…")
-        val classifier = SpeakerClassifier(ffmpeg, log)
-        val f0s = classifier.measure(video, p.cues, workDir)
+        val samples = SpeakerClassifier(ffmpeg, log).analyze(video, p.cues, workDir)
+        val f0s = samples?.map { it?.f0 }
         val threshold = SpeakerClassifier.genderThreshold(f0s?.filterNotNull().orEmpty())
         val hints = p.cues.indices.map { i -> f0s?.get(i)?.let { if (it < threshold) "M" else "F" } }
-        val labeling = labeler.label(p.cues, hints, config.maxSpeakers.coerceIn(2, 6)) { d, t -> onPreview("Identifying speakers $d/$t") }
+        val clusters = samples?.let { VoiceClusterer.cluster(it, config.maxSpeakers.coerceIn(2, 4)) }
+        log("Voice analysis: " + (clusters?.filterNotNull()?.groupingBy { it }?.eachCount()?.let { "${it.size} different voices $it" } ?: "no clearly different voices found"))
+        val voiceHints = clusters?.map { c -> c?.let { "V${it + 1}" } } ?: emptyList()
+        val labeling = labeler.label(p.cues, hints, config.maxSpeakers.coerceIn(2, 6), voiceHints) { d, t -> onPreview("Identifying speakers $d/$t") }
         val pool = VoicePool(config.voice, config.maleVoice, config.extraFemaleVoices, config.extraMaleVoices)
-        val (labels, roles) = RoleBuilder.build(p.cues, labeling, f0s, threshold, config.maxSpeakers.coerceIn(2, 6), pool)
+        val (labels, roles) = RoleBuilder.build(p.cues, labeling, f0s, threshold, config.maxSpeakers.coerceIn(2, 6), pool, clusters)
         val cues = p.cues.mapIndexed { i, c -> c.copy(speaker = labels[i]) }
         p.save(p.sourceHash, cues)
         file.writeText(json.encodeToString(RolesStored(p.sourceHash, roles)))

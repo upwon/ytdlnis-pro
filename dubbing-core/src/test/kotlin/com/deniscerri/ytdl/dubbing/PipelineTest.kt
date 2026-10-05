@@ -207,6 +207,93 @@ class PipelineTest {
         assertEquals(SpeakerClassifier.DEFAULT_THRESHOLD_HZ, SpeakerClassifier.genderThreshold(listOf(100.0, 105.0)))
     }
 
+
+    /** A synthetic "voice": harmonic stack with its own spectral shape; nearly the same pitch for both speakers. */
+    private fun voicePcm(kind: Int, seconds: Double, seed: Int): ShortArray {
+        val rate = 8000
+        val rnd = java.util.Random(seed.toLong())
+        val f0 = if (kind == 0) 118.0 else 124.0
+        val weights = DoubleArray(14) { h0 ->
+            val h = h0 + 1
+            if (kind == 0) 1.0 / h else (1.0 / h) * (1 + 4 * Math.exp(-((h - 8.0) * (h - 8.0)) / 3.0))
+        }
+        return ShortArray((seconds * rate).toInt()) { n ->
+            val t = n.toDouble() / rate
+            var v = 0.0
+            for (h in weights.indices) v += weights[h] * Math.sin(2 * Math.PI * f0 * (h + 1) * t)
+            val syllable = 0.6 + 0.4 * Math.abs(Math.sin(2 * Math.PI * 3.1 * t))
+            (v * syllable * 2500 + rnd.nextGaussian() * 60).toInt().coerceIn(-32000, 32000).toShort()
+        }
+    }
+
+    private fun writeWav(file: File, pcm: ShortArray, rate: Int = 8000) {
+        val bytes = java.nio.ByteBuffer.allocate(44 + pcm.size * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        bytes.put("RIFF".toByteArray()).putInt(36 + pcm.size * 2).put("WAVE".toByteArray()).put("fmt ".toByteArray())
+        bytes.putInt(16).putShort(1).putShort(1).putInt(rate).putInt(rate * 2).putShort(2).putShort(16)
+        bytes.put("data".toByteArray()).putInt(pcm.size * 2)
+        pcm.forEach { bytes.putShort(it) }
+        file.writeBytes(bytes.array())
+    }
+
+    /** 8 lines, alternating between two voices, 3 s each; returns the video and the cues. */
+    private fun twoTimbreVideo(name: String): Pair<File, File> {
+        val wav = File(dir, "$name.wav")
+        val all = ArrayList<Short>()
+        repeat(8) { i -> all += voicePcm(i % 2, 3.0, i).toList() }
+        writeWav(wav, all.toShortArray())
+        val v = File(dir, "$name.mp4")
+        TestMedia.ff(
+            "-f", "lavfi", "-i", "testsrc=size=160x120:rate=10:duration=24", "-i", wav.absolutePath,
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", v.absolutePath,
+        )
+        val sub = srt(200, 3200, 6200, 9200, 12200, 15200, 18200, 21200, lengthMs = 2600, name = "$name.en.srt")
+        return v to sub
+    }
+
+    @Test fun spectrumFingerprintSeparatesTwoSpeakersOfTheSamePitch() {
+        val samples = (0 until 12).map { i ->
+            val pcm = voicePcm(i % 2, 2.5, 100 + i)
+            VoiceSample(PitchEstimator.medianF0(pcm), VoiceFingerprint.of(pcm))
+        }
+        val clusters = VoiceClusterer.cluster(samples, 3)!!
+        assertEquals(List(12) { it % 2 }, clusters.map { it })
+    }
+
+    @Test fun oneVoiceIsNotSplitIntoTwo() {
+        val samples = (0 until 14).map { i ->
+            val pcm = voicePcm(0, 2.5, 200 + i)
+            VoiceSample(PitchEstimator.medianF0(pcm), VoiceFingerprint.of(pcm))
+        }
+        assertEquals(null, VoiceClusterer.cluster(samples, 3))
+    }
+
+    @Test fun whenTheModelCallsEveryoneS1TheAudioDecides() = runBlocking {
+        // a lazy model: everybody is S1
+        chatReply = { r ->
+            val messages = Json.parseToJsonElement(r.body!!.utf8()).jsonObject["messages"]!!.jsonArray
+            if (messages.first().jsonObject["content"]!!.jsonPrimitive.content.contains("WHO speaks")) {
+                val user = Json.parseToJsonElement(messages.last().jsonObject["content"]!!.jsonPrimitive.content).jsonObject
+                val rows = user["lines"]!!.jsonArray.joinToString(",") { """{"id":${it.jsonObject["id"]!!.jsonPrimitive.content},"spk":"S1"}""" }
+                """{"speakers":[$rows],"roster":{"S1":"everybody"}}"""
+            } else translationsFor(r)
+        }
+        val (v, sub) = twoTimbreVideo("lazy")
+        val roles = pipeline(withLabeler = true).analyzeRoles(v, sub, File(dir, "work-lazy"))
+        assertEquals(2, roles.size, "two voices were recorded: $roles")
+        assertEquals(listOf(4, 4), roles.map { it.lines })
+    }
+
+    @Test fun speakerChangeMarkersAndPausesReachTheModel() = runBlocking {
+        val seen = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val chat = FakeChat { r -> seen += r.messages.last().content; """{"speakers":[],"roster":{}}""" }
+        val cues = listOf(Cue(1, 0, 1000, "Hi."), Cue(2, 3000, 4000, "Hello.", turn = true))
+        SpeakerLabeler(chat, "m").label(cues, listOf("M", "F"), 2, listOf("V1", "V2"))
+        val lines = Json.parseToJsonElement(seen.single()).jsonObject["lines"]!!.jsonArray
+        assertEquals("true", lines[1].jsonObject["speaker_change_marker"]!!.jsonPrimitive.content)
+        assertEquals("V2", lines[1].jsonObject["voice"]!!.jsonPrimitive.content)
+        assertEquals("2.0", lines[1].jsonObject["pause_before_s"]!!.jsonPrimitive.content)
+    }
+
     @Test fun analysingRolesFindsTwoPeopleWithDifferentSuggestedVoices() = runBlocking {
         chatReply = { labelByPitch(it) ?: translationsFor(it) }
         val v = twoVoiceVideo("roles.mp4")

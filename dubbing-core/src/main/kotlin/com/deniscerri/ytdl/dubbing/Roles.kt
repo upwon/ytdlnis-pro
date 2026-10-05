@@ -46,6 +46,7 @@ class SpeakerLabeler(
         cues: List<Cue>,
         pitchHint: List<String?>,
         maxSpeakers: Int,
+        voiceHint: List<String?> = emptyList(),
         onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     ): Labeling {
         val labels = MutableList(cues.size) { "" }
@@ -69,6 +70,9 @@ class SpeakerLabeler(
                             put("id", cues[i].id)
                             put("text", cues[i].src)
                             put("pitch", pitchHint[i] ?: "?")
+                            voiceHint.getOrNull(i)?.let { put("voice", it) }
+                            if (cues[i].turn) put("speaker_change_marker", true)
+                            if (i > 0) put("pause_before_s", ((cues[i].startMs - cues[i - 1].endMs).coerceAtLeast(0) / 100) / 10.0)
                         })
                     }
                 })
@@ -105,13 +109,14 @@ class SpeakerLabeler(
 
         private val PROMPT = """
             You label WHO speaks each line of a video transcript (usually an interview, podcast or conversation).
-            Input JSON: max_speakers, known_speakers (id -> short description, from earlier parts), previous (the last labelled lines for context), lines (id, text, pitch).
+            Input JSON: max_speakers, known_speakers (id -> short description, from earlier parts), previous (the last labelled lines for context), lines (id, text, pitch, voice, speaker_change_marker, pause_before_s).
             Rules:
             1. Give every line a speaker id such as S1, S2, S3. Reuse a known id whenever it is the same person; create a new id only for a genuinely new person. Never use more than %d different ids in total.
-            2. Clues: a leading ">>" or "-" marks a change of speaker; a question is usually answered by someone else; people call each other by name; a monologue stays with one speaker; short back-channel words ("yeah", "right") belong to the listener.
-            3. pitch is measured from the real audio: M = low voice, F = high voice, ? = unknown. One person keeps one pitch class, so two lines with different pitch are almost certainly different people. Trust consistent pitch over weak textual clues.
-            4. For every id you use, give a few words about the person (role, sex, name if said), e.g. "host, male, Alex".
-            5. Answer with JSON only: {"speakers":[{"id":12,"spk":"S1"}],"roster":{"S1":"host, male, Alex"}}
+            2. This is most likely a conversation (interview, podcast, panel) with about max_speakers people. Labelling everything S1 is almost always wrong when the lines contain questions and answers, greetings, or people addressing each other: in that case use the different ids.
+            3. Clues from the text: speaker_change_marker = true means the subtitle itself marks a new speaker here; a question is usually answered by someone else; people call each other by name ("thanks, Matt"); a long pause before a line often means the other person speaks; short back-channel words ("yeah", "right", "exactly") belong to the listener.
+            4. Clues measured from the real audio: pitch is M (low voice), F (high voice) or ? (unknown); voice is V1, V2... = lines whose recorded voice (timbre / microphone) sounds alike share a label. Lines with different voice labels are almost certainly different people, lines with the same label are probably the same person. Trust consistent audio labels over weak textual clues.
+            5. For every id you use, give a few words about the person (role, sex, name if said), e.g. "host, male, Alex".
+            6. Answer with JSON only: {"speakers":[{"id":12,"spk":"S1"}],"roster":{"S1":"host, male, Alex"}}
         """.trimIndent()
 
         /** Returns (line id -> speaker, speaker -> description); tolerant of fences, <think> blocks and loose shapes. */
@@ -152,12 +157,21 @@ object RoleBuilder {
         threshold: Double,
         maxSpeakers: Int,
         voices: VoicePool,
+        acoustic: List<Int?>? = null,
     ): Pair<List<String>, List<Role>> {
+        // 0. the model sometimes calls everybody "S1" although the recording clearly holds several voices: trust the audio
+        var labelsIn = labeling.labels
+        val collapsed = labelsIn.distinct().size == 1
+        val voicesHeard = acoustic?.filterNotNull()?.distinct()?.size ?: 0
+        if (collapsed && voicesHeard >= 2) {
+            var previous = acoustic!!.firstOrNull { it != null } ?: 0
+            labelsIn = acoustic.map { c -> (c ?: previous).also { previous = it } }.map { "V$it" }
+        }
         // 1. order of first appearance, merge extras beyond the limit into the closest remaining speaker
         val order = LinkedHashMap<String, Int>()
-        labeling.labels.forEach { if (it !in order) order[it] = order.size + 1 }
+        labelsIn.forEach { if (it !in order) order[it] = order.size + 1 }
         val rename = order.mapValues { "S${it.value}" }
-        var labels = labeling.labels.map { rename.getValue(it) }
+        var labels = labelsIn.map { rename.getValue(it) }
 
         fun pitchOf(spk: String): Double? =
             f0s?.let { all -> labels.indices.filter { labels[it] == spk }.mapNotNull { all[it] }.sorted().let { v -> if (v.size >= 2) v[v.size / 2] else null } }

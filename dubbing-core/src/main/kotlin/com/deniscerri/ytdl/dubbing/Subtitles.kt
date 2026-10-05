@@ -9,6 +9,7 @@ object SubtitleParser {
     private val TIME = Regex("""^(?:(\d{1,3}):)?(\d{1,2}):(\d{2})[.,](\d{1,3})$""")
     private val TAGS = Regex("""<[^>]*>""")
     private val ASS = Regex("""\{\\[^}]*\}""")
+    private val TURN_MARK = Regex("""^\s*(?:<[^>]*>)*\s*(?:>>|-\s+\S)""")
 
     fun parse(content: String): List<Cue> {
         val text = content.removePrefix("﻿").replace("\r\n", "\n").replace('\r', '\n')
@@ -20,9 +21,11 @@ object SubtitleParser {
             val m = ARROW.find(lines[arrowIdx]) ?: continue
             val start = parseTime(m.groupValues[1]) ?: continue
             val end = parseTime(m.groupValues[2]) ?: continue
-            val body = cleanText(lines.drop(arrowIdx + 1).joinToString("\n"))
+            val rawBody = lines.drop(arrowIdx + 1).joinToString("\n")
+            val body = cleanText(rawBody)
             if (body.isBlank()) continue
-            cues += Cue(cues.size + 1, start, end, body)
+            val turn = rawBody.split('\n').any { TURN_MARK.containsMatchIn(it) }
+            cues += Cue(cues.size + 1, start, end, body, turn = turn)
         }
         return cues
     }
@@ -110,7 +113,7 @@ object SubtitleCleaner {
             val p = cur
             if (p == null) { cur = c; continue }
             val gap = c.startMs - p.endMs
-            val endsSentence = SENTENCE_END.containsMatchIn(p.src.trimEnd())
+            val endsSentence = SENTENCE_END.containsMatchIn(p.src.trimEnd()) || c.turn // a new speaker starts a new unit
             val tooLong = c.endMs - p.startMs > maxDurationMs || p.src.length + c.src.length + 1 > maxChars
             if (endsSentence || gap > maxGapMs || tooLong) {
                 out += p

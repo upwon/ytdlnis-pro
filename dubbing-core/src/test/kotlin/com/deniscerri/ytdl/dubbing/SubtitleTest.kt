@@ -115,4 +115,32 @@ class SubtitleTest {
         assertEquals("你好", parsed[0].src)
         assertEquals(3_661_250, parsed[0].endMs)
     }
+
+    @Test
+    fun speakerChangeMarkersAreKeptAsAFlagAndStopSentenceMerging() {
+        val vtt = """
+            WEBVTT
+
+            00:00:01.000 --> 00:00:02.000
+            and then we shipped it
+
+            00:00:02.100 --> 00:00:03.000
+            >> right, how long did that take
+
+            00:00:03.100 --> 00:00:04.000
+            about a week
+        """.trimIndent()
+        val cues = SubtitleParser.parse(vtt)
+        assertEquals(listOf(false, true, false), cues.map { it.turn })
+        assertEquals("right, how long did that take", cues[1].src)
+        val merged = SubtitleCleaner.normalize(cues)
+        assertTrue(merged.first().src == "and then we shipped it", "the new speaker starts a new unit: ${merged.map { it.src }}")
+    }
+
+    @Test
+    fun trailingEllipsisIsDroppedUnlessTheEnglishTrailsOff() {
+        assertEquals("而他就是", LlmTranslator.tidyEllipsis("and that's exactly what he is", "而他就是……"))
+        assertEquals("我想……", LlmTranslator.tidyEllipsis("I just...", "我想……"))
+        assertEquals("你好。", LlmTranslator.tidyEllipsis("Hello.", "你好。"))
+    }
 }
