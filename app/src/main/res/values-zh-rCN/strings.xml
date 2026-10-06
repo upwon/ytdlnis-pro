@@ -758,4 +758,5 @@
     <string name="dubbing_test_asr_summary">朗读一句英文，发给下面配置的识别服务，看能不能识别回来</string>
     <string name="dubbing_asr_off">请先打开“启用语音识别”</string>
     <string name="dubbing_asr_empty">服务有响应，但没有识别出文字</string>
+    <string name="dubbing_voice_sample">你好，这是这个音色给视频配音的效果。</string>
 </resources>

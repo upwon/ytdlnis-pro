@@ -757,4 +757,5 @@
     <string name="dubbing_test_asr_summary">Speaks an English sentence and sends it to the recognition service above</string>
     <string name="dubbing_asr_off">Switch on “Enable speech recognition” first</string>
     <string name="dubbing_asr_empty">The service answered, but recognised no text</string>
+    <string name="dubbing_voice_sample">Hello, this is how this voice sounds when dubbing a video.</string>
 </resources>

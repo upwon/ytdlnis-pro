@@ -96,7 +96,7 @@
             app:title="@string/dubbing_tts_engine"
             app:useSimpleSummaryProvider="true" />
 
-        <ListPreference
+        <com.deniscerri.ytdl.ui.more.settings.dubbing.VoiceListPreference
             app:icon="@drawable/baseline_audio_file_24"
             app:key="dubbing_voice"
             app:defaultValue="zh-CN-XiaoxiaoNeural"
@@ -136,7 +136,7 @@
             app:summary="@string/dubbing_speaker_count_summary"
             app:title="@string/dubbing_speaker_count" />
 
-        <ListPreference
+        <com.deniscerri.ytdl.ui.more.settings.dubbing.VoiceListPreference
             app:icon="@drawable/baseline_audio_file_24"
             app:key="dubbing_voice_male"
             app:defaultValue="zh-CN-YunxiNeural"
