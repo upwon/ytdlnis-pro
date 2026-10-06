@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaPlayer
 import android.util.AttributeSet
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.RadioButton
@@ -74,6 +75,7 @@ class VoiceListPreference @JvmOverloads constructor(
         }
 
         val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val rows = mutableListOf<Pair<String, View>>()
         values.forEachIndexed { position, voice ->
             val row = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -107,12 +109,32 @@ class VoiceListPreference @JvmOverloads constructor(
                 }
             })
             box.addView(row)
+            rows += labels[position] to row
         }
         val scroll = android.widget.ScrollView(context).apply { addView(box) }
+        val search = android.widget.EditText(context).apply {
+            hint = context.getString(R.string.dubbing_search_model)
+            setSingleLine()
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    val words = s.toString().trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+                    rows.forEach { (label, view) -> view.visibility = if (words.all { label.lowercase().contains(it) }) View.VISIBLE else View.GONE }
+                }
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            })
+        }
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            if (labels.size > 12) addView(search, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins((20 * dp).toInt(), (8 * dp).toInt(), (20 * dp).toInt(), 0)
+            })
+            addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        }
 
         dialog = MaterialAlertDialogBuilder(context)
             .setTitle(dialogTitle ?: title)
-            .setView(scroll)
+            .setView(content)
             .setNegativeButton(R.string.cancel, null)
             .create()
         dialog.setOnDismissListener { stop(); scope.cancel() }

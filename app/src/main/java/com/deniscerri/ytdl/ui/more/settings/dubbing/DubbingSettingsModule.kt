@@ -133,14 +133,16 @@ object DubbingSettingsModule : SettingModule {
     }
 
     /** Voice lists: the built-in Mandarin voices, or what MultiTTS reported on this phone. */
-    private fun currentVoices(prefs: android.content.SharedPreferences): List<Pair<String, String>> {
+    private fun currentVoices(prefs: android.content.SharedPreferences, male: Boolean): List<Pair<String, String>> {
         if (prefs.getString(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE) != DubbingPrefs.ENGINE_MULTITTS) return Presets.chineseVoices
+        // lines of "id<TAB>label<TAB>gender"
         return prefs.getString(DubbingPrefs.MULTITTS_VOICES, "").orEmpty().lines().filter { it.isNotBlank() }
-            .map { it.substringBefore('\t') to it.substringAfter('\t') }
+            .map { it.split('\t') }.filter { it.size >= 3 && it[2] == if (male) "male" else "female" }
+            .map { it[0] to it[1] }
     }
 
     private fun applyVoices(pref: ListPreference, prefs: android.content.SharedPreferences) {
-        val voices = currentVoices(prefs)
+        val voices = currentVoices(prefs, pref.key == DubbingPrefs.VOICE_MALE)
         pref.entries = voices.map { it.second }.toTypedArray()
         pref.entryValues = voices.map { it.first }.toTypedArray()
         if (voices.isNotEmpty() && voices.none { it.first == pref.value }) pref.value = voices.first().first
@@ -164,9 +166,19 @@ object DubbingSettingsModule : SettingModule {
                     showDialog(host, context.getString(R.string.dubbing_error), context.getString(R.string.no_results))
                     return@onSuccess
                 }
-                prefs.edit().putString(DubbingPrefs.MULTITTS_VOICES, voices.joinToString("\n") { "${it.first}\t${it.second}" }).apply()
+                // Mandarin only, voices that work without internet first
+                val usable = voices.filter { it.isMandarin && (it.isMale || it.isFemale) }.sortedBy { it.online }
+                if (usable.isEmpty()) {
+                    showDialog(host, context.getString(R.string.dubbing_error), context.getString(R.string.no_results))
+                    return@onSuccess
+                }
+                val lines = usable.joinToString("\n") {
+                    val label = listOf(it.name, it.desc).filter { s -> s.isNotBlank() }.joinToString(" · ") + if (it.online) " (在线)" else ""
+                    "${it.id}\t${label.replace('\t', ' ').replace('\n', ' ')}\t${it.gender}"
+                }
+                prefs.edit().putString(DubbingPrefs.MULTITTS_VOICES, lines).apply()
                 refreshVoices(host, prefs)
-                Toast.makeText(context, context.getString(R.string.dubbing_multitts_loaded, voices.size), Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.dubbing_multitts_loaded, usable.size), Toast.LENGTH_LONG).show()
             }.onFailure { showDialog(host, context.getString(R.string.dubbing_error), it.message ?: it.javaClass.simpleName) }
         }
     }
