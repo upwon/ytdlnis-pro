@@ -79,20 +79,19 @@ object DubbingSettingsModule : SettingModule {
                 }
             }
 
-            DubbingPrefs.VOICE_MALE -> (pref as ListPreference).apply {
-                entries = Presets.chineseVoices.map { it.second }.toTypedArray()
-                entryValues = Presets.chineseVoices.map { it.first }.toTypedArray()
-            }
+            DubbingPrefs.VOICE_MALE, DubbingPrefs.VOICE -> applyVoices(pref as ListPreference, prefs)
 
-            DubbingPrefs.VOICE -> (pref as ListPreference).apply {
-                entries = Presets.chineseVoices.map { it.second }.toTypedArray()
-                entryValues = Presets.chineseVoices.map { it.first }.toTypedArray()
+            "dubbing_multitts_load" -> pref.setOnPreferenceClickListener {
+                loadMultiTtsVoices(context, host)
+                true
             }
 
             DubbingPrefs.TTS_ENGINE -> {
                 applyEngineVisibility(host, prefs.getString(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE)!!)
                 pref.setOnPreferenceChangeListener { _, newValue ->
                     applyEngineVisibility(host, newValue as String)
+                    prefs.edit().putString(DubbingPrefs.TTS_ENGINE, newValue as String).apply()
+                    refreshVoices(host, prefs)
                     true
                 }
             }
@@ -127,8 +126,49 @@ object DubbingSettingsModule : SettingModule {
     private fun applyEngineVisibility(host: SettingHost, engine: String) {
         AZURE_KEYS.forEach { host.findPref(it)?.isVisible = engine == DubbingPrefs.ENGINE_AZURE }
         OPENAI_TTS_KEYS.forEach { host.findPref(it)?.isVisible = engine == DubbingPrefs.ENGINE_OPENAI }
+        host.findPref(DubbingPrefs.TTS_BASE_URL)?.isVisible = engine == DubbingPrefs.ENGINE_OPENAI || engine == DubbingPrefs.ENGINE_MULTITTS
+        host.findPref("dubbing_multitts_load")?.isVisible = engine == DubbingPrefs.ENGINE_MULTITTS
         VOICE_KEYS.forEach { host.findPref(it)?.isVisible = engine != DubbingPrefs.ENGINE_SYSTEM }
         host.findPref(DubbingPrefs.FALLBACK_SYSTEM_TTS)?.isVisible = engine != DubbingPrefs.ENGINE_SYSTEM
+    }
+
+    /** Voice lists: the built-in Mandarin voices, or what MultiTTS reported on this phone. */
+    private fun currentVoices(prefs: android.content.SharedPreferences): List<Pair<String, String>> {
+        if (prefs.getString(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE) != DubbingPrefs.ENGINE_MULTITTS) return Presets.chineseVoices
+        return prefs.getString(DubbingPrefs.MULTITTS_VOICES, "").orEmpty().lines().filter { it.isNotBlank() }
+            .map { it.substringBefore('\t') to it.substringAfter('\t') }
+    }
+
+    private fun applyVoices(pref: ListPreference, prefs: android.content.SharedPreferences) {
+        val voices = currentVoices(prefs)
+        pref.entries = voices.map { it.second }.toTypedArray()
+        pref.entryValues = voices.map { it.first }.toTypedArray()
+        if (voices.isNotEmpty() && voices.none { it.first == pref.value }) pref.value = voices.first().first
+    }
+
+    private fun refreshVoices(host: SettingHost, prefs: android.content.SharedPreferences) {
+        listOf(DubbingPrefs.VOICE, DubbingPrefs.VOICE_MALE).forEach { key ->
+            (host.findPref(key) as? ListPreference)?.let { applyVoices(it, prefs) }
+        }
+    }
+
+    private fun loadMultiTtsVoices(context: Context, host: SettingHost) {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        Toast.makeText(context, R.string.dubbing_test_running, Toast.LENGTH_SHORT).show()
+        host.hostLifecycleOwner.lifecycleScope.launch {
+            runCatching {
+                val base = prefs.getString(DubbingPrefs.TTS_BASE_URL, "").orEmpty().trim()
+                withContext(Dispatchers.IO) { com.deniscerri.ytdl.dubbing.ForwardTts(base).listVoices() }
+            }.onSuccess { voices ->
+                if (voices.isEmpty()) {
+                    showDialog(host, context.getString(R.string.dubbing_error), context.getString(R.string.no_results))
+                    return@onSuccess
+                }
+                prefs.edit().putString(DubbingPrefs.MULTITTS_VOICES, voices.joinToString("\n") { "${it.first}\t${it.second}" }).apply()
+                refreshVoices(host, prefs)
+                Toast.makeText(context, context.getString(R.string.dubbing_multitts_loaded, voices.size), Toast.LENGTH_LONG).show()
+            }.onFailure { showDialog(host, context.getString(R.string.dubbing_error), it.message ?: it.javaClass.simpleName) }
+        }
     }
 
     private fun showDialog(host: SettingHost, title: String, message: String) {

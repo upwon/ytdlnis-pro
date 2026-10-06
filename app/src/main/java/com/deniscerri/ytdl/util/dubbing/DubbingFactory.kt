@@ -8,6 +8,7 @@ import com.deniscerri.ytdl.dubbing.DubbingException
 import com.deniscerri.ytdl.dubbing.DubbingPipeline
 import com.deniscerri.ytdl.dubbing.EdgeTts
 import com.deniscerri.ytdl.dubbing.FallbackTts
+import com.deniscerri.ytdl.dubbing.ForwardTts
 import com.deniscerri.ytdl.dubbing.LlmTranslator
 import com.deniscerri.ytdl.dubbing.MuxOptions
 import com.deniscerri.ytdl.dubbing.OpenAiCompatAsr
@@ -74,6 +75,7 @@ class DubbingFactory(private val context: Context) {
                 if (base.isEmpty() || model.isEmpty()) throw DubbingException("TTS service URL / model are not configured")
                 OpenAiCompatTts(OpenAiCompatClient(base, key, extraHeaders = headersFor(base)), model)
             }
+            DubbingPrefs.ENGINE_MULTITTS -> ForwardTts(str(DubbingPrefs.TTS_BASE_URL))
             else -> EdgeTts()
         }
         return if (prefs.getBoolean(DubbingPrefs.FALLBACK_SYSTEM_TTS, true)) {
@@ -130,7 +132,11 @@ class DubbingFactory(private val context: Context) {
             voice = voice(),
             baseRatePercent = prefs.getInt(DubbingPrefs.SPEECH_RATE, 0),
             // the free Edge endpoint drops connections when too many are open at once
-            ttsConcurrency = if (str(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE) == DubbingPrefs.ENGINE_EDGE) 2 else 3,
+            ttsConcurrency = when (str(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE)) {
+                DubbingPrefs.ENGINE_EDGE -> 2
+                DubbingPrefs.ENGINE_MULTITTS -> 1 // a phone-side engine renders one sentence at a time
+                else -> 3
+            },
             embedChineseSubtitle = prefs.getBoolean(DubbingPrefs.EMBED_SUBTITLE, false),
             multiVoice = prefs.getBoolean(DubbingPrefs.MULTI_VOICE, false),
             maleVoice = str(DubbingPrefs.VOICE_MALE, "zh-CN-YunxiNeural").ifEmpty { "zh-CN-YunxiNeural" },

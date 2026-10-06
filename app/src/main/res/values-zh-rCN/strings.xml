@@ -622,6 +622,10 @@
     <string name="dubbing_engine_edge">微软 Edge 语音（免费，无需密钥）</string>
     <string name="dubbing_engine_azure">Azure 语音（官方，需要密钥）</string>
     <string name="dubbing_engine_openai">OpenAI 兼容服务</string>
+    <string name="dubbing_engine_multitts">MultiTTS（手机上的离线音色）</string>
+    <string name="dubbing_multitts_load">加载 MultiTTS 音色</string>
+    <string name="dubbing_multitts_load_summary">先打开 MultiTTS，并开启它的“转发服务”。默认地址 http://127.0.0.1:8774，可在上面的“语音服务地址”修改</string>
+    <string name="dubbing_multitts_loaded">已加载 %1$d 个音色</string>
     <string name="dubbing_engine_system">系统语音（离线）</string>
     <string name="dubbing_voice">音色</string>
     <string name="dubbing_voice_custom">自定义音色名称</string>

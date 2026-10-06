@@ -621,6 +621,10 @@
     <string name="dubbing_engine_edge">Microsoft Edge voices (free, no key)</string>
     <string name="dubbing_engine_azure">Azure Speech (official, needs a key)</string>
     <string name="dubbing_engine_openai">OpenAI-compatible service</string>
+    <string name="dubbing_engine_multitts">MultiTTS (offline voices on this phone)</string>
+    <string name="dubbing_multitts_load">Load MultiTTS voices</string>
+    <string name="dubbing_multitts_load_summary">Open MultiTTS and switch on its forward service first. Default address http://127.0.0.1:8774</string>
+    <string name="dubbing_multitts_loaded">%1$d voices loaded</string>
     <string name="dubbing_engine_system">System voice (offline)</string>
     <string name="dubbing_voice">Voice</string>
     <string name="dubbing_voice_custom">Custom voice name</string>

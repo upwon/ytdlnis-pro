@@ -201,6 +201,12 @@
             app:title="@string/dubbing_fallback_system_tts" />
 
         <Preference
+            app:icon="@drawable/ic_language"
+            app:key="dubbing_multitts_load"
+            app:summary="@string/dubbing_multitts_load_summary"
+            app:title="@string/dubbing_multitts_load" />
+
+        <Preference
             app:icon="@drawable/ic_check"
             app:key="dubbing_test_tts"
             app:summary="@string/dubbing_test_tts_summary"

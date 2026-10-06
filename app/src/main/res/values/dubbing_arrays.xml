@@ -4,12 +4,14 @@
         <item>@string/dubbing_engine_edge</item>
         <item>@string/dubbing_engine_azure</item>
         <item>@string/dubbing_engine_openai</item>
+        <item>@string/dubbing_engine_multitts</item>
         <item>@string/dubbing_engine_system</item>
     </string-array>
     <string-array name="dubbing_tts_engine_values" translatable="false">
         <item>edge</item>
         <item>azure</item>
         <item>openai</item>
+        <item>multitts</item>
         <item>system</item>
     </string-array>
     <string-array name="dubbing_speaker_count_entries">

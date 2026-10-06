@@ -45,6 +45,8 @@ object DubbingPrefs {
     const val ENGINE_AZURE = "azure"
     const val ENGINE_OPENAI = "openai"
     const val ENGINE_SYSTEM = "system"
+    const val ENGINE_MULTITTS = "multitts"
+    const val MULTITTS_VOICES = "dubbing_multitts_voices"
 
     /** Secrets must never end up in settings backups. */
     fun isSecret(key: String) = key.startsWith("dubbing_") && key.endsWith("_key")
