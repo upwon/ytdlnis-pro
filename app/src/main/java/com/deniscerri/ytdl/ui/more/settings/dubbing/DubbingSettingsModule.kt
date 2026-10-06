@@ -112,6 +112,11 @@ object DubbingSettingsModule : SettingModule {
                 true
             }
 
+            "dubbing_test_asr" -> pref.setOnPreferenceClickListener {
+                testRecognition(context, host)
+                true
+            }
+
             "dubbing_test_tts" -> pref.setOnPreferenceClickListener {
                 testVoice(context, host)
                 true
@@ -232,6 +237,27 @@ object DubbingSettingsModule : SettingModule {
                 }
             }
                 .onSuccess { showDialog(host, context.getString(R.string.dubbing_test_ok), it) }
+                .onFailure { showDialog(host, context.getString(R.string.dubbing_error), it.message.orEmpty()) }
+        }
+    }
+
+    /** Speaks an English sentence with the free Edge voice and sends it to the configured recognition service. */
+    private fun testRecognition(context: Context, host: SettingHost) {
+        val asr = DubbingFactory(context).asrProvider()
+        if (asr == null) {
+            Toast.makeText(context, R.string.dubbing_asr_off, Toast.LENGTH_LONG).show()
+            return
+        }
+        Toast.makeText(context, R.string.dubbing_test_running, Toast.LENGTH_SHORT).show()
+        host.hostLifecycleOwner.lifecycleScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val file = File(context.cacheDir, "dubbing_asr_test.mp3")
+                    com.deniscerri.ytdl.dubbing.EdgeTts().synthesize("Hello, this is a test of speech recognition.", "en-US-AriaNeural", 0, file)
+                    asr.transcribe(file, "en", 4_000).joinToString(" ") { it.src }
+                }
+            }
+                .onSuccess { showDialog(host, context.getString(R.string.dubbing_test_ok), it.ifBlank { context.getString(R.string.dubbing_asr_empty) }) }
                 .onFailure { showDialog(host, context.getString(R.string.dubbing_error), it.message.orEmpty()) }
         }
     }

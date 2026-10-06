@@ -216,6 +216,12 @@
             app:summary="@string/dubbing_asr_enabled_summary"
             app:title="@string/dubbing_asr_enabled" />
 
+        <Preference
+            app:icon="@drawable/ic_check"
+            app:key="dubbing_test_asr"
+            app:summary="@string/dubbing_test_asr_summary"
+            app:title="@string/dubbing_test_asr" />
+
         <EditTextPreference
             app:icon="@drawable/ic_language"
             app:key="dubbing_asr_base_url"

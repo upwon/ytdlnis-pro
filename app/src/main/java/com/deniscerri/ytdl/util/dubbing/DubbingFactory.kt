@@ -39,7 +39,8 @@ class DubbingFactory(private val context: Context) {
         )
     }
 
-    private fun asrProvider(): OpenAiCompatAsr? {
+    /** The configured speech-recognition service, or null when it is switched off. */
+    fun asrProvider(): OpenAiCompatAsr? {
         if (!prefs.getBoolean(DubbingPrefs.ASR_ENABLED, false)) return null
         // an own key without an address almost always means Groq (the free Whisper); never send it to the translation service
         val ownKey = str(DubbingPrefs.ASR_API_KEY)

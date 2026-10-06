@@ -753,4 +753,8 @@
     <string name="dubbing_extra_prompt_summary">Added to the translation prompt, e.g. the topic of the video, the tone you want, names to keep. Leave empty for the default.</string>
     <string name="dubbing_extra_body">Advanced: extra request parameters (JSON)</string>
     <string name="dubbing_extra_body_summary">Merged into every translation request. Used to switch off the slow “thinking” of reasoning models, e.g. {"thinking":{"type":"disabled"}} for Zhipu. Set automatically by the provider presets; leave empty if unsure.</string>
+    <string name="dubbing_test_asr">Test speech recognition</string>
+    <string name="dubbing_test_asr_summary">Speaks an English sentence and sends it to the recognition service above</string>
+    <string name="dubbing_asr_off">Switch on “Enable speech recognition” first</string>
+    <string name="dubbing_asr_empty">The service answered, but recognised no text</string>
 </resources>
