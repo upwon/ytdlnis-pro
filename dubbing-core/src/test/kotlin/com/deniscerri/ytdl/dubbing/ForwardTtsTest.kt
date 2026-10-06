@@ -42,7 +42,7 @@ class ForwardTtsTest {
             assertEquals("v1", req.url.queryParameter("voice"))
             assertEquals("60", req.url.queryParameter("speed"))
             assertEquals(500, out.length().toInt())
-            } finally { server.shutdown() }
+            } finally { server.close() }
         }
     }
 }
