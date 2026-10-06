@@ -227,12 +227,18 @@ object DubbingSettingsModule : SettingModule {
         val ctx = host.getHostContext()
         val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
         val profiles = loadProfiles(prefs)
-        val labels = profiles.map { "${it.name}\n${it.model} · ${it.baseUrl.removePrefix("https://")}" } + ctx.getString(R.string.dubbing_profile_save)
+        fun cur(key: String) = prefs.getString(key, "").orEmpty()
+        val labels = profiles.map {
+            val active = it.baseUrl == cur(DubbingPrefs.LLM_BASE_URL) && it.model == cur(DubbingPrefs.LLM_MODEL) && it.apiKey == cur(DubbingPrefs.LLM_API_KEY)
+            (if (active) "✓ " else "") + "${it.name}\n${it.model} · ${it.baseUrl.removePrefix("https://")}"
+        }
         MaterialAlertDialogBuilder(ctx)
             .setTitle(R.string.dubbing_profiles)
-            .setItems(labels.toTypedArray()) { _, which ->
-                if (which == profiles.size) saveCurrentAsProfile(host) else chooseProfile(host, profiles[which])
+            .apply {
+                if (profiles.isEmpty()) setMessage(R.string.dubbing_profiles_empty)
+                else setItems(labels.toTypedArray()) { _, which -> chooseProfile(host, profiles[which]) }
             }
+            .setPositiveButton(R.string.dubbing_profile_save_short) { _, _ -> saveCurrentAsProfile(host) }
             .setNegativeButton(R.string.cancel, null)
             .show()
     }
