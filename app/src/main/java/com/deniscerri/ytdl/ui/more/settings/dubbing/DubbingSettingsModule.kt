@@ -133,6 +133,7 @@ object DubbingSettingsModule : SettingModule {
         OPENAI_TTS_KEYS.forEach { host.findPref(it)?.isVisible = engine == DubbingPrefs.ENGINE_OPENAI }
         host.findPref(DubbingPrefs.TTS_BASE_URL)?.isVisible = engine == DubbingPrefs.ENGINE_OPENAI || engine == DubbingPrefs.ENGINE_MULTITTS
         host.findPref("dubbing_multitts_load")?.isVisible = engine == DubbingPrefs.ENGINE_MULTITTS
+        host.findPref("dubbing_multitts_probe")?.isVisible = engine == DubbingPrefs.ENGINE_MULTITTS
         VOICE_KEYS.forEach { host.findPref(it)?.isVisible = engine != DubbingPrefs.ENGINE_SYSTEM }
         host.findPref(DubbingPrefs.FALLBACK_SYSTEM_TTS)?.isVisible = engine != DubbingPrefs.ENGINE_SYSTEM
     }
