@@ -30,7 +30,7 @@ object Presets {
 
     /** Extra voices handed out (in this order) to further speakers of the same sex. */
     val maleVoiceIds = listOf("zh-CN-YunxiNeural", "zh-CN-YunyangNeural", "zh-CN-YunjianNeural")
-    val femaleVoiceIds = listOf("zh-CN-XiaoxiaoNeural", "zh-CN-XiaoyiNeural", "zh-CN-XiaochenNeural", "zh-CN-XiaohanNeural")
+    val femaleVoiceIds = listOf("zh-CN-XiaoxiaoNeural", "zh-CN-XiaoyiNeural", "zh-CN-liaoning-XiaobeiNeural", "zh-CN-shaanxi-XiaoniNeural")
 
     /** Common Mandarin neural voices (identical names for Edge and Azure). */
     val chineseVoices = listOf(
@@ -39,7 +39,7 @@ object Presets {
         "zh-CN-YunyangNeural" to "云扬 (男，新闻)",
         "zh-CN-XiaoyiNeural" to "晓伊 (女，活泼)",
         "zh-CN-YunjianNeural" to "云健 (男，解说)",
-        "zh-CN-XiaochenNeural" to "晓辰 (女)",
-        "zh-CN-XiaohanNeural" to "晓涵 (女)",
+        "zh-CN-liaoning-XiaobeiNeural" to "晓北 (女，东北口音)",
+        "zh-CN-shaanxi-XiaoniNeural" to "晓妮 (女，陕西口音)",
     )
 }
