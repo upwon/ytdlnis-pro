@@ -42,7 +42,7 @@ class ForwardTts(
         withContext(Dispatchers.IO) {
             try {
                 http.newCall(Request.Builder().url(url).build()).execute().use { resp ->
-                    val bytes = resp.body?.bytes() ?: ByteArray(0)
+                    val bytes = resp.body.bytes()
                     if (!resp.isSuccessful) throw ApiException(resp.code, "MultiTTS: HTTP ${resp.code} ${bytes.decodeToString().take(200)}")
                     if (bytes.size < 200) throw IOException("MultiTTS returned no audio: ${bytes.decodeToString().take(200)}")
                     outFile.writeBytes(bytes)
@@ -58,7 +58,7 @@ class ForwardTts(
         val body = try {
             http.newCall(Request.Builder().url("$base/voices").build()).execute().use { resp ->
                 if (!resp.isSuccessful) throw ApiException(resp.code, "MultiTTS: HTTP ${resp.code}")
-                resp.body?.string().orEmpty()
+                resp.body.string()
             }
         } catch (e: java.net.ConnectException) {
             throw IOException("Cannot reach MultiTTS at $base - open MultiTTS and switch on its forward service (转发服务)", e)

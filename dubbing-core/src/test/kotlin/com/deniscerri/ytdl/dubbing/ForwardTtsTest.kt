@@ -1,8 +1,8 @@
 package com.deniscerri.ytdl.dubbing
 
 import kotlinx.coroutines.runBlocking
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
 import okio.Buffer
 import java.io.File
 import kotlin.test.Test
@@ -30,9 +30,10 @@ class ForwardTtsTest {
     }
 
     @Test fun sendsTextSpeedAndVoiceAndSavesAudio() = runBlocking {
-        MockWebServer().use { server ->
-            server.enqueue(MockResponse().setBody(Buffer().write(ByteArray(500) { 1 })))
+        MockWebServer().let { server ->
+            server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(ByteArray(500) { 1 })).build())
             server.start()
+            try {
             val out = File.createTempFile("fwd", ".mp3")
             ForwardTts(server.url("/").toString()).synthesize("你好", "v1", 20, out)
             val req = server.takeRequest()
@@ -41,6 +42,7 @@ class ForwardTtsTest {
             assertEquals("v1", req.requestUrl!!.queryParameter("voice"))
             assertEquals("60", req.requestUrl!!.queryParameter("speed"))
             assertEquals(500, out.length().toInt())
+            } finally { server.shutdown() }
         }
     }
 }
