@@ -266,7 +266,11 @@ object DubbingSettingsModule : SettingModule {
         }
         MaterialAlertDialogBuilder(ctx)
             .setTitle(R.string.dubbing_profile_name)
-            .setView(input, (20 * ctx.resources.displayMetrics.density).toInt(), 8, (20 * ctx.resources.displayMetrics.density).toInt(), 0)
+            .setView(android.widget.FrameLayout(ctx).apply {
+                val pad = (20 * ctx.resources.displayMetrics.density).toInt()
+                setPadding(pad, pad / 2, pad, 0)
+                addView(input)
+            })
             .setPositiveButton(R.string.ok) { _, _ ->
                 val name = input.text.toString().trim().ifEmpty { s(DubbingPrefs.LLM_MODEL).ifEmpty { "方案" } }
                 val list = loadProfiles(prefs).filter { it.name != name }.toMutableList()
