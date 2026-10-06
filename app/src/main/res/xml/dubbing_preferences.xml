@@ -208,6 +208,12 @@
 
         <Preference
             app:icon="@drawable/ic_check"
+            app:key="dubbing_multitts_probe"
+            app:summary="@string/dubbing_multitts_probe_summary"
+            app:title="@string/dubbing_multitts_probe" />
+
+        <Preference
+            app:icon="@drawable/ic_check"
             app:key="dubbing_test_tts"
             app:summary="@string/dubbing_test_tts_summary"
             app:title="@string/dubbing_test_tts" />

@@ -86,6 +86,11 @@ object DubbingSettingsModule : SettingModule {
                 true
             }
 
+            "dubbing_multitts_probe" -> pref.setOnPreferenceClickListener {
+                probeMultiTtsVoices(context, host, pref)
+                true
+            }
+
             DubbingPrefs.TTS_ENGINE -> {
                 applyEngineVisibility(host, prefs.getString(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE)!!)
                 pref.setOnPreferenceChangeListener { _, newValue ->
@@ -136,7 +141,8 @@ object DubbingSettingsModule : SettingModule {
     private fun currentVoices(prefs: android.content.SharedPreferences, male: Boolean): List<Pair<String, String>> {
         if (prefs.getString(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE) != DubbingPrefs.ENGINE_MULTITTS) return Presets.chineseVoices
         // lines of "id<TAB>label<TAB>gender"
-        return prefs.getString(DubbingPrefs.MULTITTS_VOICES, "").orEmpty().lines().filter { it.isNotBlank() }
+        val working = prefs.getString(DubbingPrefs.MULTITTS_WORKING, "").orEmpty()
+        return working.ifBlank { prefs.getString(DubbingPrefs.MULTITTS_VOICES, "").orEmpty() }.lines().filter { it.isNotBlank() }
             .map { it.split('\t') }.filter { it.size >= 3 && it[2] == if (male) "male" else "female" }
             .map { it[0] to it[1] }
     }
@@ -176,11 +182,57 @@ object DubbingSettingsModule : SettingModule {
                     val label = listOf(it.name, it.desc).filter { s -> s.isNotBlank() }.joinToString(" · ") + if (it.online) " (在线)" else ""
                     "${it.id}\t${label.replace('\t', ' ').replace('\n', ' ')}\t${it.gender}"
                 }
-                prefs.edit().putString(DubbingPrefs.MULTITTS_VOICES, lines).apply()
+                // a new catalogue invalidates the earlier probe
+                prefs.edit().putString(DubbingPrefs.MULTITTS_VOICES, lines).remove(DubbingPrefs.MULTITTS_WORKING).apply()
                 refreshVoices(host, prefs)
                 Toast.makeText(context, context.getString(R.string.dubbing_multitts_loaded, usable.size), Toast.LENGTH_LONG).show()
             }.onFailure { showDialog(host, context.getString(R.string.dubbing_error), it.message ?: it.javaClass.simpleName) }
         }
+    }
+
+    private var probeJob: kotlinx.coroutines.Job? = null
+
+    /** Tries every offline voice once and keeps those that really make sound (many are listed but have no data installed). */
+    private fun probeMultiTtsVoices(context: Context, host: SettingHost, pref: Preference) {
+        if (probeJob?.isActive == true) {
+            probeJob?.cancel()
+            return
+        }
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val all = prefs.getString(DubbingPrefs.MULTITTS_VOICES, "").orEmpty().lines().filter { it.isNotBlank() }
+            .map { it.split('\t') }.filter { it.size >= 3 && !it[1].endsWith("(在线)") }
+        if (all.isEmpty()) {
+            Toast.makeText(context, R.string.dubbing_multitts_load_first, Toast.LENGTH_LONG).show()
+            return
+        }
+        val idleSummary = pref.summary
+        val tts = com.deniscerri.ytdl.dubbing.ForwardTts(prefs.getString(DubbingPrefs.TTS_BASE_URL, "").orEmpty().trim(), probeClient)
+        probeJob = host.hostLifecycleOwner.lifecycleScope.launch {
+            val ok = mutableListOf<List<String>>()
+            val file = File(context.cacheDir, "multitts_probe.mp3")
+            try {
+                all.forEachIndexed { i, v ->
+                    pref.summary = context.getString(R.string.dubbing_multitts_probing, i + 1, all.size, ok.size)
+                    val works = runCatching {
+                        withContext(Dispatchers.IO) { tts.synthesize("你好", v[0], 0, file) }
+                    }.isSuccess
+                    if (works) ok += v
+                    if (i % 10 == 9) saveWorking(prefs, ok)
+                }
+            } finally {
+                saveWorking(prefs, ok)
+                refreshVoices(host, prefs)
+                pref.summary = idleSummary
+                Toast.makeText(context, context.getString(R.string.dubbing_multitts_probe_done, ok.size, all.size), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private val probeClient = com.deniscerri.ytdl.dubbing.defaultHttpClient().newBuilder()
+        .callTimeout(20, java.util.concurrent.TimeUnit.SECONDS).build()
+
+    private fun saveWorking(prefs: android.content.SharedPreferences, ok: List<List<String>>) {
+        prefs.edit().putString(DubbingPrefs.MULTITTS_WORKING, ok.joinToString("\n") { it.joinToString("\t") }).apply()
     }
 
     private fun showDialog(host: SettingHost, title: String, message: String) {

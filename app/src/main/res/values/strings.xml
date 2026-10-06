@@ -625,6 +625,11 @@
     <string name="dubbing_multitts_load">Load MultiTTS voices</string>
     <string name="dubbing_multitts_load_summary">Open MultiTTS and switch on its forward service first. Default address http://127.0.0.1:8774</string>
     <string name="dubbing_multitts_loaded">%1$d voices loaded</string>
+    <string name="dubbing_multitts_probe">Detect working voices</string>
+    <string name="dubbing_multitts_probe_summary">Tries every offline voice once (a few minutes) and keeps only those that make sound. Tap again to stop.</string>
+    <string name="dubbing_multitts_load_first">Load the MultiTTS voices first</string>
+    <string name="dubbing_multitts_probing">Testing %1$d/%2$d, %3$d working</string>
+    <string name="dubbing_multitts_probe_done">Found %1$d working voices out of %2$d</string>
     <string name="dubbing_engine_system">System voice (offline)</string>
     <string name="dubbing_voice">Voice</string>
     <string name="dubbing_voice_custom">Custom voice name</string>

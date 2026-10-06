@@ -47,6 +47,8 @@ object DubbingPrefs {
     const val ENGINE_SYSTEM = "system"
     const val ENGINE_MULTITTS = "multitts"
     const val MULTITTS_VOICES = "dubbing_multitts_voices"
+    /** Voices that really produced sound in the probe, same line format as [MULTITTS_VOICES]. */
+    const val MULTITTS_WORKING = "dubbing_multitts_working"
 
     /** Secrets must never end up in settings backups. */
     fun isSecret(key: String) = key.startsWith("dubbing_") && key.endsWith("_key")

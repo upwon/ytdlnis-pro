@@ -44,7 +44,8 @@ class ForwardTts(
                 http.newCall(Request.Builder().url(url).build()).execute().use { resp ->
                     val bytes = resp.body.bytes()
                     if (!resp.isSuccessful) throw ApiException(resp.code, "MultiTTS: HTTP ${resp.code} ${bytes.decodeToString().take(200)}")
-                    if (bytes.size < 200) throw IOException("MultiTTS returned no audio: ${bytes.decodeToString().take(200)}")
+                    // a failed synthesis comes back as a short text / JSON message instead of audio
+                    if (bytes.size < 200 || bytes[0] == '{'.code.toByte()) throw IOException("MultiTTS returned no audio: ${bytes.decodeToString().take(200)}")
                     outFile.writeBytes(bytes)
                 }
             } catch (e: java.net.ConnectException) {

@@ -626,6 +626,11 @@
     <string name="dubbing_multitts_load">加载 MultiTTS 音色</string>
     <string name="dubbing_multitts_load_summary">先打开 MultiTTS，并开启它的“转发服务”。默认地址 http://127.0.0.1:8774，可在上面的“语音服务地址”修改</string>
     <string name="dubbing_multitts_loaded">已加载 %1$d 个音色</string>
+    <string name="dubbing_multitts_probe">检测可用音色</string>
+    <string name="dubbing_multitts_probe_summary">逐个试一遍离线音色（需要几分钟），只保留真的能出声的。再点一次可停止。</string>
+    <string name="dubbing_multitts_load_first">请先点“加载 MultiTTS 音色”</string>
+    <string name="dubbing_multitts_probing">正在检测 %1$d/%2$d，已找到 %3$d 个可用</string>
+    <string name="dubbing_multitts_probe_done">检测完成：%2$d 个里有 %1$d 个可用</string>
     <string name="dubbing_engine_system">系统语音（离线）</string>
     <string name="dubbing_voice">音色</string>
     <string name="dubbing_voice_custom">自定义音色名称</string>

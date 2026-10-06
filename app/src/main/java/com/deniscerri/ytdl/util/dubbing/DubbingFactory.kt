@@ -100,6 +100,14 @@ class DubbingFactory(private val context: Context) {
             Presets.maleVoiceIds.filter { it !in used }.take(3).forEachIndexed { i, v -> map["M${i + 2}"] = v; used += v }
             Presets.femaleVoiceIds.filter { it !in used }.take(3).forEachIndexed { i, v -> map["F${i + 2}"] = v; used += v }
         }
+        if (engine == DubbingPrefs.ENGINE_MULTITTS) {
+            // further speakers get other voices of the same sex that the probe found working
+            val working = prefs.getString(DubbingPrefs.MULTITTS_WORKING, "").orEmpty().lines()
+                .map { it.split('\t') }.filter { it.size >= 3 }
+            val used = mutableSetOf(female, male)
+            working.filter { it[2] == "male" && it[0] !in used }.take(3).forEachIndexed { i, v -> map["M${i + 2}"] = v[0]; used += v[0] }
+            working.filter { it[2] == "female" && it[0] !in used }.take(3).forEachIndexed { i, v -> map["F${i + 2}"] = v[0]; used += v[0] }
+        }
         return map
     }
 
