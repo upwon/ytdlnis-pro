@@ -9,6 +9,12 @@
         app:title="@string/dubbing_tasks" />
 
     <PreferenceCategory android:title="@string/dubbing_llm_category">
+        <Preference
+            app:icon="@drawable/ic_dns"
+            app:key="dubbing_llm_profiles"
+            app:summary="@string/dubbing_profiles_summary"
+            app:title="@string/dubbing_profiles" />
+
         <ListPreference
             app:icon="@drawable/ic_dns"
             app:key="dubbing_llm_preset"

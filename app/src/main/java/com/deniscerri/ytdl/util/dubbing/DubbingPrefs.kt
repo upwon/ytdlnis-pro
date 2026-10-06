@@ -8,6 +8,8 @@ object DubbingPrefs {
     const val LLM_MODEL = "dubbing_llm_model"
     const val LLM_EXTRA_BODY = "dubbing_llm_extra_body"
     const val LLM_CONCURRENCY = "dubbing_llm_concurrency"
+    /** JSON array of saved translation set-ups (contains API keys, so it is treated as secret). */
+    const val LLM_PROFILES = "dubbing_llm_profiles"
 
     const val ASR_ENABLED = "dubbing_asr_enabled"
     const val ASR_BASE_URL = "dubbing_asr_base_url"
@@ -51,5 +53,5 @@ object DubbingPrefs {
     const val MULTITTS_WORKING = "dubbing_multitts_working"
 
     /** Secrets must never end up in settings backups. */
-    fun isSecret(key: String) = key.startsWith("dubbing_") && key.endsWith("_key")
+    fun isSecret(key: String) = (key.startsWith("dubbing_") && key.endsWith("_key")) || key == LLM_PROFILES
 }

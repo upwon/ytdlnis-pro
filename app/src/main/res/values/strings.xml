@@ -630,6 +630,15 @@
     <string name="dubbing_multitts_load_first">Load the MultiTTS voices first</string>
     <string name="dubbing_multitts_probing">Testing %1$d/%2$d, %3$d working</string>
     <string name="dubbing_multitts_probe_done">Found %1$d working voices out of %2$d</string>
+    <string name="dubbing_profiles">Saved set-ups</string>
+    <string name="dubbing_profiles_summary">Save the provider, key and model below as a named set-up and switch between them with one tap</string>
+    <string name="dubbing_profile_save">Save current settings as new set-up…</string>
+    <string name="dubbing_profile_name">Name of this set-up</string>
+    <string name="dubbing_profile_switch">Switch to this set-up</string>
+    <string name="dubbing_profile_delete">Delete</string>
+    <string name="dubbing_profile_saved">Saved set-up “%1$s”</string>
+    <string name="dubbing_profile_switched">Switched to “%1$s”</string>
+    <string name="dubbing_profiles_empty">No saved set-ups yet. Fill in the fields below, then save them here.</string>
     <string name="dubbing_engine_system">System voice (offline)</string>
     <string name="dubbing_voice">Voice</string>
     <string name="dubbing_voice_custom">Custom voice name</string>

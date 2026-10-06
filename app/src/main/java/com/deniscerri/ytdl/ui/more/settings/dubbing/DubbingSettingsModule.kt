@@ -81,6 +81,11 @@ object DubbingSettingsModule : SettingModule {
 
             DubbingPrefs.VOICE_MALE, DubbingPrefs.VOICE -> applyVoices(pref as ListPreference, prefs)
 
+            DubbingPrefs.LLM_PROFILES -> pref.setOnPreferenceClickListener {
+                showProfiles(host)
+                true
+            }
+
             "dubbing_multitts_load" -> pref.setOnPreferenceClickListener {
                 loadMultiTtsVoices(context, host)
                 true
@@ -189,6 +194,89 @@ object DubbingSettingsModule : SettingModule {
                 Toast.makeText(context, context.getString(R.string.dubbing_multitts_loaded, usable.size), Toast.LENGTH_LONG).show()
             }.onFailure { showDialog(host, context.getString(R.string.dubbing_error), it.message ?: it.javaClass.simpleName) }
         }
+    }
+
+    private class Profile(val name: String, val baseUrl: String, val apiKey: String, val model: String, val concurrency: String, val extraBody: String)
+
+    private fun loadProfiles(prefs: android.content.SharedPreferences): MutableList<Profile> {
+        val arr = runCatching { org.json.JSONArray(prefs.getString(DubbingPrefs.LLM_PROFILES, "[]")) }.getOrDefault(org.json.JSONArray())
+        return (0 until arr.length()).map { arr.getJSONObject(it) }.map {
+            Profile(it.optString("name"), it.optString("baseUrl"), it.optString("apiKey"), it.optString("model"), it.optString("concurrency", "1"), it.optString("extraBody"))
+        }.toMutableList()
+    }
+
+    private fun storeProfiles(prefs: android.content.SharedPreferences, list: List<Profile>) {
+        val arr = org.json.JSONArray()
+        list.forEach {
+            arr.put(org.json.JSONObject().put("name", it.name).put("baseUrl", it.baseUrl).put("apiKey", it.apiKey)
+                .put("model", it.model).put("concurrency", it.concurrency).put("extraBody", it.extraBody))
+        }
+        prefs.edit().putString(DubbingPrefs.LLM_PROFILES, arr.toString()).apply()
+    }
+
+    private fun applyProfile(host: SettingHost, p: Profile) {
+        (host.findPref(DubbingPrefs.LLM_BASE_URL) as? EditTextPreference)?.text = p.baseUrl
+        (host.findPref(DubbingPrefs.LLM_API_KEY) as? EditTextPreference)?.text = p.apiKey
+        (host.findPref(DubbingPrefs.LLM_MODEL) as? EditTextPreference)?.text = p.model
+        (host.findPref(DubbingPrefs.LLM_CONCURRENCY) as? ListPreference)?.value = p.concurrency
+        (host.findPref(DubbingPrefs.LLM_EXTRA_BODY) as? EditTextPreference)?.text = p.extraBody
+    }
+
+    /** Named bundles of provider / key / model so switching services does not mean retyping everything. */
+    private fun showProfiles(host: SettingHost) {
+        val ctx = host.getHostContext()
+        val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
+        val profiles = loadProfiles(prefs)
+        val labels = profiles.map { "${it.name}\n${it.model} · ${it.baseUrl.removePrefix("https://")}" } + ctx.getString(R.string.dubbing_profile_save)
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(R.string.dubbing_profiles)
+            .apply { if (profiles.isEmpty()) setMessage(R.string.dubbing_profiles_empty) }
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which == profiles.size) saveCurrentAsProfile(host) else chooseProfile(host, profiles[which])
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun chooseProfile(host: SettingHost, p: Profile) {
+        val ctx = host.getHostContext()
+        val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(p.name)
+            .setItems(arrayOf(ctx.getString(R.string.dubbing_profile_switch), ctx.getString(R.string.dubbing_profile_delete))) { _, which ->
+                if (which == 0) {
+                    applyProfile(host, p)
+                    Toast.makeText(ctx, ctx.getString(R.string.dubbing_profile_switched, p.name), Toast.LENGTH_SHORT).show()
+                } else {
+                    storeProfiles(prefs, loadProfiles(prefs).filter { it.name != p.name })
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun saveCurrentAsProfile(host: SettingHost) {
+        val ctx = host.getHostContext()
+        val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
+        fun s(key: String) = prefs.getString(key, "").orEmpty()
+        val input = EditText(ctx).apply {
+            hint = ctx.getString(R.string.dubbing_profile_name)
+            setSingleLine()
+            setText(Presets.llm.firstOrNull { it.baseUrl.isNotEmpty() && it.baseUrl == s(DubbingPrefs.LLM_BASE_URL) }?.name?.substringBefore("（")?.substringBefore(" (").orEmpty())
+        }
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(R.string.dubbing_profile_name)
+            .setView(input, (20 * ctx.resources.displayMetrics.density).toInt(), 8, (20 * ctx.resources.displayMetrics.density).toInt(), 0)
+            .setPositiveButton(R.string.ok) { _, _ ->
+                val name = input.text.toString().trim().ifEmpty { s(DubbingPrefs.LLM_MODEL).ifEmpty { "方案" } }
+                val list = loadProfiles(prefs).filter { it.name != name }.toMutableList()
+                list += Profile(name, s(DubbingPrefs.LLM_BASE_URL), s(DubbingPrefs.LLM_API_KEY), s(DubbingPrefs.LLM_MODEL),
+                    s(DubbingPrefs.LLM_CONCURRENCY).ifEmpty { "1" }, s(DubbingPrefs.LLM_EXTRA_BODY))
+                storeProfiles(prefs, list)
+                Toast.makeText(ctx, ctx.getString(R.string.dubbing_profile_saved, name), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private var probeJob: kotlinx.coroutines.Job? = null

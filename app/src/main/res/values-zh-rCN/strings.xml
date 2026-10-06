@@ -631,6 +631,15 @@
     <string name="dubbing_multitts_load_first">请先点“加载 MultiTTS 音色”</string>
     <string name="dubbing_multitts_probing">正在检测 %1$d/%2$d，已找到 %3$d 个可用</string>
     <string name="dubbing_multitts_probe_done">检测完成：%2$d 个里有 %1$d 个可用</string>
+    <string name="dubbing_profiles">已保存的翻译方案</string>
+    <string name="dubbing_profiles_summary">把下面的服务商、密钥、模型保存成一个有名字的方案，之后一点就能切换</string>
+    <string name="dubbing_profile_save">把当前设置保存为新方案…</string>
+    <string name="dubbing_profile_name">方案名称</string>
+    <string name="dubbing_profile_switch">切换到此方案</string>
+    <string name="dubbing_profile_delete">删除</string>
+    <string name="dubbing_profile_saved">已保存方案“%1$s”</string>
+    <string name="dubbing_profile_switched">已切换到“%1$s”</string>
+    <string name="dubbing_profiles_empty">还没有保存的方案。先把下面的字段填好，再保存到这里。</string>
     <string name="dubbing_engine_system">系统语音（离线）</string>
     <string name="dubbing_voice">音色</string>
     <string name="dubbing_voice_custom">自定义音色名称</string>
