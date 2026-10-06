@@ -37,10 +37,10 @@ class ForwardTtsTest {
             val out = File.createTempFile("fwd", ".mp3")
             ForwardTts(server.url("/").toString()).synthesize("你好", "v1", 20, out)
             val req = server.takeRequest()
-            assertEquals("/forward", req.requestUrl!!.encodedPath)
-            assertEquals("你好", req.requestUrl!!.queryParameter("text"))
-            assertEquals("v1", req.requestUrl!!.queryParameter("voice"))
-            assertEquals("60", req.requestUrl!!.queryParameter("speed"))
+            assertEquals("/forward", req.url.encodedPath)
+            assertEquals("你好", req.url.queryParameter("text"))
+            assertEquals("v1", req.url.queryParameter("voice"))
+            assertEquals("60", req.url.queryParameter("speed"))
             assertEquals(500, out.length().toInt())
             } finally { server.shutdown() }
         }
