@@ -230,7 +230,6 @@ object DubbingSettingsModule : SettingModule {
         val labels = profiles.map { "${it.name}\n${it.model} · ${it.baseUrl.removePrefix("https://")}" } + ctx.getString(R.string.dubbing_profile_save)
         MaterialAlertDialogBuilder(ctx)
             .setTitle(R.string.dubbing_profiles)
-            .apply { if (profiles.isEmpty()) setMessage(R.string.dubbing_profiles_empty) }
             .setItems(labels.toTypedArray()) { _, which ->
                 if (which == profiles.size) saveCurrentAsProfile(host) else chooseProfile(host, profiles[which])
             }
