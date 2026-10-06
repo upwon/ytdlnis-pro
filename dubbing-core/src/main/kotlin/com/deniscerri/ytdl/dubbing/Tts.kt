@@ -96,8 +96,9 @@ class AzureTts(
 }
 
 /**
- * Tries [primary] first; when it fails (blocked endpoint, quota ...) the clip is produced by [fallback].
- * After [maxPrimaryFailures] failures in a row the primary is skipped for the rest of the job.
+ * Tries [primary] first, retrying a flaky connection a few times; only when that keeps failing the clip is produced by
+ * [fallback]. After [maxPrimaryFailures] sentences in a row the primary is left alone for [coolDownMs] (a network
+ * hiccup must not push the whole rest of the video onto the worse voice), then it is tried again.
  */
 class FallbackTts(
     private val primary: TtsProvider,
@@ -105,21 +106,38 @@ class FallbackTts(
     private val fallbackVoice: String,
     private val maxPrimaryFailures: Int = 3,
     private val log: (String) -> Unit = {},
+    private val primaryAttempts: Int = 3,
+    private val retryDelayMs: Long = 1500,
+    private val coolDownMs: Long = 30_000,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : TtsProvider {
     @Volatile private var consecutiveFailures = 0
+    @Volatile private var pausedUntil = 0L
     override val fileExtension: String get() = primary.fileExtension
 
+    private fun describe(e: Exception) = "${e.javaClass.simpleName}${e.message?.let { ": $it" } ?: ""}"
+
     override suspend fun synthesize(text: String, voice: String, ratePercent: Int, outFile: File) {
-        if (consecutiveFailures < maxPrimaryFailures) {
-            try {
-                primary.synthesize(text, voice, ratePercent, outFile)
+        if (clock() >= pausedUntil) {
+            var last: Exception? = null
+            for (attempt in 1..primaryAttempts) {
+                try {
+                    primary.synthesize(text, voice, ratePercent, outFile)
+                    consecutiveFailures = 0
+                    return
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    last = e
+                    if (attempt < primaryAttempts) kotlinx.coroutines.delay(retryDelayMs * attempt)
+                }
+            }
+            consecutiveFailures++
+            log("Primary TTS failed $primaryAttempts times (${describe(last!!)}); using the fallback voice for this sentence")
+            if (consecutiveFailures >= maxPrimaryFailures) {
+                pausedUntil = clock() + coolDownMs
                 consecutiveFailures = 0
-                return
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                consecutiveFailures++
-                log("Primary TTS failed (${e.message}); using fallback voice")
+                log("Primary TTS paused for ${coolDownMs / 1000}s after $maxPrimaryFailures failed sentences in a row")
             }
         }
         fallback.synthesize(text, fallbackVoice, ratePercent, outFile)

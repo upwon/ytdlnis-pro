@@ -78,26 +78,58 @@ class RestTtsTest {
         assertContains(server.takeRequest().body!!.utf8(), "\"speed\":1.5")
     }
 
-    @Test fun fallbackTakesOverAndSticksAfterRepeatedFailures() = runBlocking {
-        class Counting(val fail: Boolean, val tag: String) : TtsProvider {
-            var calls = 0
-            override val fileExtension = "mp3"
-            override suspend fun synthesize(text: String, voice: String, ratePercent: Int, outFile: File) {
-                calls++
-                if (fail) throw IOException("down")
-                outFile.writeText("$tag:$voice")
-            }
+    private class Counting(val fail: Boolean, val tag: String) : TtsProvider {
+        var calls = 0
+        override val fileExtension = "mp3"
+        override suspend fun synthesize(text: String, voice: String, ratePercent: Int, outFile: File) {
+            calls++
+            if (fail) throw IOException("down")
+            outFile.writeText("$tag:$voice")
         }
+    }
+
+    @Test fun fallbackTakesOverAndSticksAfterRepeatedFailures() = runBlocking {
         val primary = Counting(true, "p")
         val fallback = Counting(false, "f")
         val logs = mutableListOf<String>()
-        val tts = FallbackTts(primary, fallback, "sys-voice", maxPrimaryFailures = 2, log = { logs += it })
+        val tts = FallbackTts(primary, fallback, "sys-voice", maxPrimaryFailures = 2, log = { logs += it }, primaryAttempts = 1, retryDelayMs = 0)
         val f = File.createTempFile("fallback", ".mp3").apply { deleteOnExit() }
         repeat(4) { tts.synthesize("x", "edge-voice", 0, f) }
         assertEquals("f:sys-voice", f.readText())
-        assertEquals(2, primary.calls) // not retried once it has failed twice in a row
+        assertEquals(2, primary.calls) // left alone for a while once it has failed twice in a row
         assertEquals(4, fallback.calls)
-        assertEquals(2, logs.size)
+        assertEquals(3, logs.size) // two failures + the "paused" notice
+    }
+
+    @Test fun primaryIsTriedAgainAfterTheCoolDownInsteadOfBeingDroppedForTheWholeJob() = runBlocking {
+        var now = 0L
+        val primary = Counting(true, "p")
+        val tts = FallbackTts(primary, Counting(false, "f"), "sys", maxPrimaryFailures = 2, primaryAttempts = 1, retryDelayMs = 0, coolDownMs = 10_000, clock = { now })
+        val f = File.createTempFile("cool", ".mp3").apply { deleteOnExit() }
+        repeat(3) { tts.synthesize("x", "v", 0, f) }
+        assertEquals(2, primary.calls)
+        now += 11_000
+        tts.synthesize("x", "v", 0, f)
+        assertEquals(3, primary.calls, "after the cool-down the primary voice gets another chance")
+    }
+
+    @Test fun aFlakyConnectionIsRetriedBeforeTheOtherVoiceIsUsed() = runBlocking {
+        var failuresLeft = 2
+        val flaky = object : TtsProvider {
+            override val fileExtension = "mp3"
+            var calls = 0
+            override suspend fun synthesize(text: String, voice: String, ratePercent: Int, outFile: File) {
+                calls++
+                if (failuresLeft-- > 0) throw java.io.IOException()
+                outFile.writeText("primary")
+            }
+        }
+        val fallback = Counting(false, "f")
+        val f = File.createTempFile("flaky", ".mp3").apply { deleteOnExit() }
+        FallbackTts(flaky, fallback, "sys", retryDelayMs = 0).synthesize("x", "v", 0, f)
+        assertEquals("primary", f.readText())
+        assertEquals(3, flaky.calls)
+        assertEquals(0, fallback.calls, "the sentence kept the same voice")
     }
 }
 

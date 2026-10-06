@@ -295,7 +295,7 @@ class DubbingPipeline(
                         } catch (e: Exception) {
                             // one stubborn sentence must not lose the whole video: leave it silent and carry on
                             file.delete()
-                            log("Speech synthesis failed for cue ${cue.id} (skipped): ${e.message}")
+                            log("Speech synthesis failed for cue ${cue.id} (skipped): ${e.message ?: e.javaClass.simpleName} — «${text.take(40)}»")
                             lock.withLock { failures.add(cue.id to (e.message ?: e.javaClass.simpleName)) }
                             result = null
                         }

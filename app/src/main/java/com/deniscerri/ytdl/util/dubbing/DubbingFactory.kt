@@ -129,6 +129,8 @@ class DubbingFactory(private val context: Context) {
         val config = DubbingConfig(
             voice = voice(),
             baseRatePercent = prefs.getInt(DubbingPrefs.SPEECH_RATE, 0),
+            // the free Edge endpoint drops connections when too many are open at once
+            ttsConcurrency = if (str(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE) == DubbingPrefs.ENGINE_EDGE) 2 else 3,
             embedChineseSubtitle = prefs.getBoolean(DubbingPrefs.EMBED_SUBTITLE, false),
             multiVoice = prefs.getBoolean(DubbingPrefs.MULTI_VOICE, false),
             maleVoice = str(DubbingPrefs.VOICE_MALE, "zh-CN-YunxiNeural").ifEmpty { "zh-CN-YunxiNeural" },

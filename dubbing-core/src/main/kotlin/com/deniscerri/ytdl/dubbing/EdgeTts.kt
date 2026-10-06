@@ -110,13 +110,18 @@ class EdgeTts(
                     done.completeExceptionally(HandshakeRejected(date))
                 } else {
                     done.completeExceptionally(
-                        if (response != null) ApiException(response.code, t.message.orEmpty()) else IOException(t.message, t)
+                        if (response != null) ApiException(response.code, t.message.orEmpty()) else IOException(t.message ?: t.javaClass.simpleName, t)
                     )
                 }
             }
         })
         try {
-            withTimeout(timeoutMs) { done.await() }
+            try {
+                withTimeout(timeoutMs) { done.await() }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                // a timeout is a failure of this request, not a cancellation of the whole job
+                throw IOException("Edge TTS did not answer within ${timeoutMs / 1000}s")
+            }
         } finally {
             ws.cancel()
         }
