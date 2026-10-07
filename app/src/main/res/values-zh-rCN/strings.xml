@@ -641,6 +641,7 @@
     <string name="dubbing_profile_switched">已切换到“%1$s”</string>
     <string name="dubbing_profiles_empty">还没有保存的方案。先把下面的字段填好，再保存到这里。</string>
     <string name="dubbing_profile_save_short">保存当前设置</string>
+    <string name="dubbing_search_voice">搜索音色（输入关键词）</string>
     <string name="dubbing_engine_system">系统语音（离线）</string>
     <string name="dubbing_voice">音色</string>
     <string name="dubbing_voice_custom">自定义音色名称</string>

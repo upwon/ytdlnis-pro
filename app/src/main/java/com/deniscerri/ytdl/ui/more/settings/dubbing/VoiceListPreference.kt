@@ -113,7 +113,7 @@ class VoiceListPreference @JvmOverloads constructor(
         }
         val scroll = android.widget.ScrollView(context).apply { addView(box) }
         val search = android.widget.EditText(context).apply {
-            hint = context.getString(R.string.dubbing_search_model)
+            hint = context.getString(R.string.dubbing_search_voice)
             setSingleLine()
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun afterTextChanged(s: android.text.Editable?) {

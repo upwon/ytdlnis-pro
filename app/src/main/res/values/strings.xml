@@ -640,6 +640,7 @@
     <string name="dubbing_profile_switched">Switched to “%1$s”</string>
     <string name="dubbing_profiles_empty">No saved set-ups yet. Fill in the fields below, then save them here.</string>
     <string name="dubbing_profile_save_short">Save current</string>
+    <string name="dubbing_search_voice">Search voices (keywords)</string>
     <string name="dubbing_engine_system">System voice (offline)</string>
     <string name="dubbing_voice">Voice</string>
     <string name="dubbing_voice_custom">Custom voice name</string>
