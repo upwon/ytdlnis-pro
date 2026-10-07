@@ -144,17 +144,18 @@ object DubbingSettingsModule : SettingModule {
     }
 
     /** Voice lists: the built-in Mandarin voices, or what MultiTTS reported on this phone. */
-    private fun currentVoices(prefs: android.content.SharedPreferences, male: Boolean): List<Pair<String, String>> {
+    /** [sex]: "male" / "female" to keep one sex, null for both (the main voice may be either). */
+    private fun currentVoices(prefs: android.content.SharedPreferences, sex: String?): List<Pair<String, String>> {
         if (prefs.getString(DubbingPrefs.TTS_ENGINE, DubbingPrefs.ENGINE_EDGE) != DubbingPrefs.ENGINE_MULTITTS) return Presets.chineseVoices
         // lines of "id<TAB>label<TAB>gender"
         val working = prefs.getString(DubbingPrefs.MULTITTS_WORKING, "").orEmpty()
         return working.ifBlank { prefs.getString(DubbingPrefs.MULTITTS_VOICES, "").orEmpty() }.lines().filter { it.isNotBlank() }
-            .map { it.split('\t') }.filter { it.size >= 3 && it[2] == if (male) "male" else "female" }
-            .map { it[0] to it[1] }
+            .map { it.split('\t') }.filter { it.size >= 3 && (sex == null || it[2] == sex) }
+            .map { it[0] to if (sex == null && !it[1].contains("男") && !it[1].contains("女")) it[1] + if (it[2] == "male") "（男）" else "（女）" else it[1] }
     }
 
     private fun applyVoices(pref: ListPreference, prefs: android.content.SharedPreferences) {
-        val voices = currentVoices(prefs, pref.key == DubbingPrefs.VOICE_MALE)
+        val voices = currentVoices(prefs, if (pref.key == DubbingPrefs.VOICE_MALE) "male" else null)
         pref.entries = voices.map { it.second }.toTypedArray()
         pref.entryValues = voices.map { it.first }.toTypedArray()
         if (voices.isNotEmpty() && voices.none { it.first == pref.value }) pref.value = voices.first().first
@@ -192,6 +193,8 @@ object DubbingSettingsModule : SettingModule {
                 prefs.edit().putString(DubbingPrefs.MULTITTS_VOICES, lines).remove(DubbingPrefs.MULTITTS_WORKING).apply()
                 refreshVoices(host, prefs)
                 Toast.makeText(context, context.getString(R.string.dubbing_multitts_loaded, usable.size), Toast.LENGTH_LONG).show()
+                // many listed voices have no data on this phone: find the ones that really speak, right away
+                host.findPref("dubbing_multitts_probe")?.let { probeMultiTtsVoices(context, host, it) }
             }.onFailure { showDialog(host, context.getString(R.string.dubbing_error), it.message ?: it.javaClass.simpleName) }
         }
     }
