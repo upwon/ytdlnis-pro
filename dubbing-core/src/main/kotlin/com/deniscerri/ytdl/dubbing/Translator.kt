@@ -46,6 +46,11 @@ data class TranslatorConfig(
     val extraSystemPrompt: String = "",
     /** Keep common tech terms (agent, prompt, API ...) in English instead of translating them. */
     val keepEnglishTerms: Boolean = true,
+    /**
+     * Subtitle-only runs: the text is read, not spoken, so there is no time-based length cap and long lines may be
+     * broken in two with a newline.
+     */
+    val subtitleMode: Boolean = false,
 )
 
 class TranslationException(message: String) : Exception(message)
@@ -141,7 +146,7 @@ class LlmTranslator(
                 add(buildJsonObject {
                     put("id", c.id)
                     put("en", c.src)
-                    put("max_chars", maxChars(all, i))
+                    if (!config.subtitleMode) put("max_chars", maxChars(all, i))
                 })
             }
         }
@@ -164,7 +169,8 @@ class LlmTranslator(
         val byId = parseTranslations(reply.content)
         val out = LinkedHashMap<Int, String>()
         for (i in indices) {
-            val zh = tidyEllipsis(all[i].src, byId[all[i].id]?.trim().orEmpty())
+            val raw = byId[all[i].id]?.trim().orEmpty()
+            val zh = tidyEllipsis(all[i].src, if (config.subtitleMode) tidyLines(raw) else raw)
             if (zh.isNotEmpty()) out[i] = zh
         }
         if (out.size < indices.size) {
@@ -181,7 +187,35 @@ class LlmTranslator(
         return max(8, (window / 1000.0 * config.charsPerSecond).roundToInt())
     }
 
-    internal fun systemPrompt(): String = buildString {
+    internal fun systemPrompt(): String = if (config.subtitleMode) subtitlePrompt() else dubbingPrompt()
+
+    /** For text people read on screen (no speaking-time limit); tuned for Chinese viewers of English videos. */
+    internal fun subtitlePrompt(): String = buildString {
+        append("你是顶级的中文字幕本地化专家，专门把${config.sourceLanguage}视频字幕翻译成自然、流畅、符合中国观众观看习惯的中文。\n")
+        append("翻译原则（必须严格遵守）：\n")
+        append("· 意译优先，直译为辅：意思对了就行，表达必须像中国人说的话。\n")
+        append("· 口语化：字幕是给人看着听的，多用短句、语气词、日常表达；数字、人名、事实不能错。\n")
+        append("· 拒绝翻译腔：不要“正在进行中”“这是一个……的事情”“我认为它是……”“被”字句堆叠、一长串“的”这类生硬表达。\n")
+        append("· 情绪和语气还原：原文轻松就轻松，吐槽就吐槽，激动就激动，反问、调侃、强调都要带出来。\n")
+        append("· 文化本地化：遇到英文俚语、梗、双关，优先找中文里对应的说法或意译，让中国观众也能秒懂。\n")
+        append("· 字幕可读性：每行尽量不超过 18 个汉字；译文较长时，在合适的语义停顿处用一个换行符 \\n 分成两行，最多两行。\n")
+        append("规则：\n")
+        append("1. 只翻译 items 里每条的 \"en\" 字段；context（前文）和 following（后文）仅供理解上下文，不要翻译，也不要输出。\n")
+        if (config.keepEnglishTerms) {
+            append("2. 专有名词和术语：使用最常见的中文译名；没有固定译名的保留英文。科技、编程、AI 领域里中文圈日常直接说英文的词（agent、prompt、token、API、SDK、LLM、MCP、PR、repo、commit、benchmark、framework、pipeline 等）保留英文，不加括号解释；已有通用中文说法的（数据库、服务器、神经网络、算法）仍用中文。产品名、公司名、人名、代码、命令、缩写保持原样，同一术语全文写法一致。\n")
+        } else {
+            append("2. 专有名词：使用最常见的中文译名；没有固定译名的保留英文。产品名、人名、代码保持原样，同一术语全文写法一致。\n")
+        }
+        append("3. 口语里的填充词和重复（you know、like、um、I mean、sort of）按需省略或化成语气，不要逐个翻译。\n")
+        append("4. 字幕常在句子中间被切开：某条没有说完时，照原意顺畅地翻出这半句，结尾不要加省略号或破折号，更不要自己补全后文。\n")
+        append("5. 人称代词按上下文确定，同一个人前后称呼一致。不要括号注释、表情符号、Markdown。\n")
+        append("6. 不要合并或拆分条目，每个 id 必须恰好有一条译文，且不能为空。\n")
+        append("7. 只输出 JSON，格式严格为 {\"translations\":[{\"id\":1,\"zh\":\"译文\"}]}，不要输出任何其他文字。\n")
+        if (config.glossary.isNotBlank()) append("术语表（必须遵守，格式“原文=译法”；译法写成原文即表示保留原文）：\n${config.glossary.trim()}\n")
+        if (config.extraSystemPrompt.isNotBlank()) append("用户补充要求：\n${config.extraSystemPrompt.trim()}\n")
+    }
+
+    internal fun dubbingPrompt(): String = buildString {
         append("你是资深的视频字幕译者兼配音文案编辑。把用户给出的${config.sourceLanguage}对话 / 演讲字幕翻译成地道、流畅的简体中文，译文会被直接朗读配音。\n")
         append("翻译要做到“信、达、雅”：\n")
         append("· 信：忠实原意，不增不漏，不曲解；数字、人名、事实、语气（反问、调侃、强调、委婉）都要保留。\n")
@@ -214,6 +248,15 @@ class LlmTranslator(
         private val FENCE = Regex("```[a-zA-Z]*")
 
         private val TRAILING_ELLIPSIS = Regex("""(?:…+|\.{2,}|。{2,})[\s"'”’)）]*$""")
+
+        /** Keeps at most two non-empty lines, so a line break in a subtitle never turns into a blank line. */
+        internal fun tidyLines(zh: String): String {
+            val lines = zh.replace("\\n", "\n").lines().map { it.trim() }.filter { it.isNotEmpty() }
+            return when {
+                lines.size <= 2 -> lines.joinToString("\n")
+                else -> lines.take(1).joinToString("") + "\n" + lines.drop(1).joinToString("")
+            }
+        }
 
         /** Models like to trail off with "……" on a cut-off line. Keep it only when the English itself trails off. */
         internal fun tidyEllipsis(src: String, zh: String): String {

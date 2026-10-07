@@ -169,6 +169,7 @@ class DubbingFactory(private val context: Context) {
                 keepEnglishTerms = prefs.getBoolean(DubbingPrefs.KEEP_TERMS, true),
                 extraSystemPrompt = str(DubbingPrefs.EXTRA_PROMPT),
                 concurrency = (str(DubbingPrefs.LLM_CONCURRENCY, "2").toIntOrNull() ?: 2).coerceIn(1, 3),
+                subtitleMode = !needTts,
             ),
             log = log,
         )

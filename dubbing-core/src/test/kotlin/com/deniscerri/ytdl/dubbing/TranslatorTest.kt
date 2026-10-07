@@ -103,4 +103,32 @@ class TranslatorTest {
         assertTrue(!off.contains("保留英文原文"), "the option switches the rule off")
         assertTrue(off.contains("通用的中文译名"))
     }
+
+    @Test
+    fun subtitleModeUsesReadingPromptWithoutLengthCapAndKeepsTwoLines() = runBlocking {
+        val chat = FakeChat { r ->
+            FakeChat.userItems(r).joinToString(",", """{"translations":[""", "]}") { (id, _) ->
+                """{"id":$id,"zh":"第一行\n\n第二行\n第三行"}"""
+            }
+        }
+        val t = LlmTranslator(chat, "m", TranslatorConfig(subtitleMode = true, concurrency = 1))
+        val p = t.systemPrompt()
+        assertTrue(p.contains("字幕本地化专家") && p.contains("18 个汉字") && p.contains("情绪和语气还原"))
+        assertTrue(!p.contains("max_chars") && !p.contains("朗读"), "no spoken-length rules in subtitle mode")
+        assertTrue(p.contains("{\"translations\""), "still answers as JSON, one entry per id")
+
+        val out = t.translate(cues(1))
+        assertEquals("第一行\n第二行第三行", out[0].zh, "blank lines are dropped and at most two lines are kept")
+        val user = Json.parseToJsonElement(chat.requests[0].messages.last().content).jsonObject
+        assertTrue(user["items"]!!.jsonArray[0].jsonObject["max_chars"] == null, "no time-based length cap is sent")
+
+        val dub = LlmTranslator(FakeChat { "" }, "m").systemPrompt()
+        assertTrue(dub.contains("信、达、雅"), "dubbing mode keeps its own prompt")
+    }
+
+    @Test
+    fun srtNeverContainsBlankLinesInsideACue() {
+        val srt = SrtWriter.format(listOf(Cue(1, 0, 2000, "a", "上\n\n下")))
+        assertEquals("1\n00:00:00,000 --> 00:00:02,000\n上\n下\n\n", srt)
+    }
 }

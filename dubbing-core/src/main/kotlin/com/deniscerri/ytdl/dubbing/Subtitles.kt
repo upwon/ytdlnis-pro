@@ -144,7 +144,7 @@ object SrtWriter {
             if (text.isBlank()) continue
             append(n++).append('\n')
             append(time(c.startMs)).append(" --> ").append(time(c.endMs)).append('\n')
-            append(text.trim()).append("\n\n")
+            append(text.trim().replace(Regex("\n{2,}"), "\n")).append("\n\n")
         }
     }
 
