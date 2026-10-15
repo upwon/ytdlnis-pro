@@ -597,7 +597,7 @@ object RuntimeManager {
         return try {
             YTDLUpdater.update(appContext, updateChannel)
         } catch (e: IOException) {
-            throw ExecuteException("failed to update youtube-dl", e)
+            throw ExecuteException("failed to update youtube-dl: ${e.message ?: e.javaClass.simpleName}", e)
         } finally {
             synchronized(updateLock) {
                 updateLatch.countDown()

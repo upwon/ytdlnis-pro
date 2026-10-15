@@ -27,20 +27,29 @@ internal object YTDLUpdater {
     ): RuntimeManager.UpdateStatus {
         if (appContext == null) return RuntimeManager.UpdateStatus.ALREADY_UP_TO_DATE
 
-        // 1. Check for update and get JSON response manually
-        val jsonString = fetchJsonFromUrl(updateChannel.apiUrl)
-            ?: throw IOException("Failed to fetch update info")
-
-        val json = JSONObject(jsonString)
-        val newVersion = json.optString("tag_name")
+        // 1. Check for update. The GitHub API is rate limited (60 requests / hour per IP, which a shared VPN address
+        //    quickly uses up) and is often blocked, so fall back to the plain release pages when it fails.
+        val apiError = StringBuilder()
+        val jsonString = fetchJsonFromUrl(updateChannel.apiUrl, apiError)
+        val json: JSONObject?
+        val newVersion: String
+        val downloadUrl: String
+        if (jsonString != null) {
+            json = JSONObject(jsonString)
+            newVersion = json.optString("tag_name")
+            downloadUrl = if (newVersion == version(appContext)) "" else getDownloadUrl(json)
+        } else {
+            json = null
+            val repo = updateChannel.apiUrl.substringAfter("/repos/").substringBefore("/releases")
+            newVersion = latestTagFromReleasePage(repo)
+                ?: throw IOException("Failed to fetch update info (${apiError.toString().ifEmpty { "no answer" }}; the release page was not reachable either)")
+            downloadUrl = "https://github.com/$repo/releases/download/$newVersion/${RuntimeManager.ytdlpBin}"
+        }
         val oldVersion = version(appContext)
 
         if (newVersion == oldVersion) {
             return RuntimeManager.UpdateStatus.ALREADY_UP_TO_DATE
         }
-
-        // 2. Parse download URL for the specific binary
-        val downloadUrl = getDownloadUrl(json)
 
         // 3. Download and Install
         val file = download(appContext, downloadUrl)
@@ -59,11 +68,29 @@ internal object YTDLUpdater {
             file.delete()
         }
 
-        updateSharedPrefs(appContext, newVersion, json.optString("name"))
+        updateSharedPrefs(appContext, newVersion, json?.optString("name") ?: newVersion)
         return RuntimeManager.UpdateStatus.DONE
     }
 
-    private fun fetchJsonFromUrl(apiUrl: String): String? {
+    /** `https://github.com/<repo>/releases/latest` redirects to `.../tag/<tag>`; reading that needs no API call. */
+    private fun latestTagFromReleasePage(repo: String): String? {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = URL("https://github.com/$repo/releases/latest").openConnection() as HttpURLConnection
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
+            val location = connection.getHeaderField("Location")
+            location?.substringAfterLast("/tag/", "")?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading the latest release page", e)
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    private fun fetchJsonFromUrl(apiUrl: String, error: StringBuilder = StringBuilder()): String? {
         var connection: HttpURLConnection? = null
         return try {
             val url = URL(apiUrl)
@@ -75,10 +102,12 @@ internal object YTDLUpdater {
             if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                 connection.inputStream.bufferedReader().use { it.readText() }
             } else {
+                error.append("GitHub API HTTP ${connection.responseCode}")
                 null
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching update JSON", e)
+            error.append(e.javaClass.simpleName).append(": ").append(e.message.orEmpty())
             null
         } finally {
             connection?.disconnect()
