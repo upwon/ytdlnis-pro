@@ -6,6 +6,8 @@
 版本号规则：`1.9.0-pro.N`，N 是 CI 构建号，每次构建都会变，数字越大越新。App 里"设置 → 关于"显示的就是它。
 下载：https://github.com/upwon/ytdlnis-pro/releases/tag/dubbing-latest
 
+> 未解决的问题和待核查事项见 [docs/TODO-pro.md](docs/TODO-pro.md)（例如年龄限制视频下载失败）。
+
 > 说明：#54 之前的构建号没有逐条对应记录，下面"最初的功能"一节按功能归并。
 
 ---
