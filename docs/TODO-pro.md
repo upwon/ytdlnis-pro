@@ -42,5 +42,11 @@ ERROR: [youtube] yd1G8nptNfE: Sorry, this content is age-restricted
 
 - 现象：更新 yt-dlp 报 `failed to update youtube-dl`，没有原因。
 - 原因（读代码）：`YTDLUpdater` 先请求 `api.github.com/repos/yt-dlp/.../releases/latest`（10 秒超时），失败一律抛同一句错误。GitHub API 未登录限流 60 次/小时/IP，VPN 共享 IP 容易被用光。
-- 已改（提交 `efb08c9`，构建 #70）：API 失败时改读 `https://github.com/<repo>/releases/latest` 的跳转拿版本号，直接从 `releases/download/<tag>/<bin>` 下载；报错带上 HTTP 状态码或异常信息。
-- 待办：#70 发布后请用户更新一次 yt-dlp，确认是否成功；失败的话看新的报错原因。
+- 已改（提交 `efb08c9`；#70、#71 构建因 Edge 403 未发布，随下一个发布版本一起出）：API 失败时改读 `https://github.com/<repo>/releases/latest` 的跳转拿版本号，直接从 `releases/download/<tag>/<bin>` 下载；报错带上 HTTP 状态码或异常信息。
+- 待办：新版本发布后请用户更新一次 yt-dlp，确认是否成功；失败的话看新的报错原因。
+
+## 3. Edge 免费语音的令牌算法（已修，需关注）
+
+- 2026-10 中旬起 Edge read-aloud 服务只接受 `Sec-MS-GEC-Version: 2-…` 和 v2 令牌（`<16 hex>-<64 hex>`），旧的纯 SHA-256 令牌返回 403。
+- 已移植到 `dubbing-core/.../EdgeGec.kt`，来源 edge-tts `src/edge_tts/drm.py`（generate_sec_ms_gec_v2）；测试向量由参考实现生成。
+- 以后 Edge 再次全部 403 时，先对比 edge-tts 最新的 `constants.py` / `drm.py` 是否又改了算法或版本号。CI 的 LiveTest `edgeTtsProducesRealMandarinSpeech` 会最先报出来。

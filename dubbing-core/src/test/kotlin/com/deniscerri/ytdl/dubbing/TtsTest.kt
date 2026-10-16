@@ -141,9 +141,12 @@ class EdgeTtsTest {
     private val fixedNow = 1_700_000_000_000L
 
     @Test fun secMsGecMatchesIndependentImplementation() {
-        // Expected values computed with a separate Python implementation of the same published algorithm.
-        assertEquals("42301B335578FEFDAE2637DED1ABD614505D432559EC08032B82048483726AFF", EdgeTts.secMsGec(fixedNow))
-        assertEquals("E85AECA4054665D350193FDC644D6716DF0F24350DAB0844476D80F50B0B57FD", EdgeTts.secMsGec(fixedNow, 3600.0))
+        // Expected values produced by edge-tts' own generate_sec_ms_gec_v2 (drm.py) for the same timestamps.
+        assertEquals("2CD23A2CA0B2595A-F3C846C370E05F9CC83ACC5F995C5F5D87A4D0F14CE8936A0F902E64099E38A2", EdgeTts.secMsGec(fixedNow))
+        assertEquals("6E40E1C13361AFF9-984857E21D007EC5E95BF2E608FB694C87BDCFD368D2229D7C307F366C3D9C40", EdgeTts.secMsGec(fixedNow, 3600.0))
+        assertEquals("52BC7A17B50DFEC9-28C4394775C8751CD2F6859C030C06DB1489ACAB3B3A7651831FC26895177ED6", EdgeTts.secMsGec(0))
+        assertEquals("8A34AC8AD2675525-CCAB82C61192786DC72AC9E841FA8CF700AD79FE48DA483A3D745218A7814CD8", EdgeTts.secMsGec(1_760_573_100_000L))
+        assertTrue(EdgeTts.GEC_VERSION.startsWith("2-"))
         // stable inside a 5-minute bucket, changes in the next one
         assertEquals(EdgeTts.secMsGec(fixedNow + 50_000), EdgeTts.secMsGec(fixedNow + 51_000))
         assertTrue(EdgeTts.secMsGec(fixedNow) != EdgeTts.secMsGec(fixedNow + 300_000))

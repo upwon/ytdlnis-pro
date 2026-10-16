@@ -10,8 +10,8 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import java.io.ByteArrayOutputStream
 import java.io.File
+import kotlin.math.floor
 import java.io.IOException
-import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -133,7 +133,7 @@ class EdgeTts(
     companion object {
         const val TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
         const val CHROMIUM_FULL_VERSION = "143.0.3650.75"
-        const val GEC_VERSION = "1-$CHROMIUM_FULL_VERSION"
+        const val GEC_VERSION = "2-$CHROMIUM_FULL_VERSION"
         const val DEFAULT_WSS_URL =
             "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=$TRUSTED_CLIENT_TOKEN"
         private const val USER_AGENT =
@@ -141,13 +141,14 @@ class EdgeTts(
                 "Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
         private const val WIN_EPOCH_SECONDS = 11_644_473_600L
 
-        /** Token the Edge servers require: SHA-256 of the 5-minute-rounded Windows file-time + client token. */
+        /**
+         * Token the Edge servers require: the 5-minute-rounded Windows file time + client token, hashed with the v2
+         * scheme (see [EdgeGec]). Microsoft stopped accepting the plain SHA-256 v1 token in October 2026.
+         */
         fun secMsGec(nowMs: Long, skewSeconds: Double = 0.0): String {
-            var ticks = (nowMs / 1000.0 + skewSeconds).toLong() + WIN_EPOCH_SECONDS
+            var ticks = floor(nowMs / 1000.0 + skewSeconds).toLong() + WIN_EPOCH_SECONDS
             ticks -= ticks % 300
-            val input = (ticks * 10_000_000L).toString() + TRUSTED_CLIENT_TOKEN
-            return MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.US_ASCII))
-                .joinToString("") { "%02X".format(it) }
+            return EdgeGec.token((ticks * 10_000_000L).toString() + TRUSTED_CLIENT_TOKEN)
         }
 
         internal fun jsDate(): String {
